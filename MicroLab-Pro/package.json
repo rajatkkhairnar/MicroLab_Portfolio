@@ -1,7 +1,7 @@
 {
   "name": "microlab-pro",
-  "productName": "MicroLab Pro",
-  "version": "2.0.0",
+  "productName": "MicroLab-Pro",
+  "version": "3.0.0",
   "type": "module",
   "description": "Offline-first Laboratory Information Management System",
   "main": "electron/main.cjs",
@@ -44,7 +44,7 @@
       {
         "provider": "github",
         "owner": "rajatkkhairnar",
-        "repo": "MicroLab-Pro"
+        "repo": "MicroLab-Portfolio"
       }
     ],
     "files": [
