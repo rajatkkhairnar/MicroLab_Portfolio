@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  
+  /* Medical Dashboard Background */
+  background-color: #F8FAFC; /* Slate-50 */
+  color: #0F172A; /* Slate-900 */
+}
+
+/* Custom Scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Utility for hiding scrollbar but allowing scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Show only the Report Modal's Paper */
+  #root, 
+  #root > * {
+    /* We need to ensure the modal container is visible */
+    visibility: visible; 
+  }
+
+  /* But actually, the easiest way with React portals or modals is usually: */
+  .fixed {
+    position: absolute !important;
+    inset: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  /* Specifically target the A4 paper div inside the modal */
+  .bg-white.w-\[210mm\] {
+    visibility: visible;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    box-shadow: none !important;
+  }
+  
+  /* Hide sidebar and buttons explicitly */
+  aside, nav, button, .print\:hidden {
+    display: none !important;
+  }
+}
