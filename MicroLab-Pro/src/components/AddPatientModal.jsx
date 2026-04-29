@@ -191,6 +191,19 @@ const AddPatientModal = ({ isOpen, onClose, onSuccess }) => {
               {fieldErrors.phone && <p className="text-red-500 text-xs mt-1">{fieldErrors.phone}</p>}
             </div>
 
+            {/* Delivery Address */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Delivery Address</label>
+              <textarea 
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                placeholder="Enter delivery address"
+                rows="2"
+              ></textarea>
+            </div>
+
             {/* VIP Checkbox */}
             <div className="col-span-2 flex items-center gap-2 mt-2">
               <input 

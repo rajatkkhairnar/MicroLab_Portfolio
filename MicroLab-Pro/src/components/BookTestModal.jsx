@@ -227,6 +227,10 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
                         <label className="block text-xs font-bold text-slate-500 uppercase">Phone *</label>
                         <input type="tel" name="phone" value={newPatient.phone} onChange={handleNewPatientChange} className="w-full p-2 border rounded bg-white" placeholder="9876543210" />
                       </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase">Delivery Address</label>
+                        <textarea name="address" value={newPatient.address} onChange={handleNewPatientChange} className="w-full p-2 border rounded bg-white" placeholder="Enter delivery address" rows="2"></textarea>
+                      </div>
                     </div>
                   )}
 

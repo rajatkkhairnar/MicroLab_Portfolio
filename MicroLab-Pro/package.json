@@ -44,7 +44,8 @@
       {
         "provider": "github",
         "owner": "rajatkkhairnar",
-        "repo": "MicroLab-Portfolio"
+        "repo": "MicroLab_Portfolio",
+        "private": true
       }
     ],
     "files": [

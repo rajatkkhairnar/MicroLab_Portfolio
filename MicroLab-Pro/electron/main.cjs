@@ -633,6 +633,23 @@ ipcMain.handle('print-report', async (_, { htmlContent, patientName }) => {
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Enable logging for diagnostics
+autoUpdater.logger = require('electron').app ? console : console;
+autoUpdater.logger.transports = undefined; // Avoid crash if logger API differs
+
+// Configure GitHub token for private repo access.
+// The token is read from the GH_TOKEN environment variable.
+// For built apps, it can also be baked into the app-update.yml at build time.
+if (process.env.GH_TOKEN) {
+  autoUpdater.requestHeaders = { Authorization: `token ${process.env.GH_TOKEN}` };
+}
+
+// Allow update checks in dev mode for testing purposes
+// Set the FORCE_DEV_UPDATE_CONFIG env variable to enable this
+if (!app.isPackaged && process.env.FORCE_DEV_UPDATE_CONFIG) {
+  autoUpdater.forceDevUpdateConfig = true;
+}
+
 // Forward update events to the renderer
 function sendUpdateStatus(channel, data) {
   if (mainWindow && mainWindow.webContents) {
@@ -676,15 +693,30 @@ autoUpdater.on('update-downloaded', (info) => {
 });
 
 autoUpdater.on('error', (err) => {
+  console.error('Auto-updater error:', err);
+  let userMessage = err.message || 'Update check failed';
+  // Provide a more helpful message for common errors
+  if (userMessage.includes('404') || userMessage.includes('Not Found')) {
+    userMessage = 'No releases found on GitHub. Please create a release first (see README).';
+  } else if (userMessage.includes('not packed')) {
+    userMessage = 'Update check is unavailable in development mode.';
+  }
   sendUpdateStatus('update-status', {
     status: 'error',
-    message: err.message || 'Update check failed'
+    message: userMessage
   });
 });
 
 // IPC: Trigger manual update check
 ipcMain.handle('check-for-update', async () => {
   try {
+    // Guard: In dev mode without forced config, return a friendly message
+    if (!app.isPackaged && !autoUpdater.forceDevUpdateConfig) {
+      return { 
+        success: false, 
+        error: 'Update check is unavailable in development mode. Build the app first or set FORCE_DEV_UPDATE_CONFIG=true.' 
+      };
+    }
     const result = await autoUpdater.checkForUpdates();
     return { success: true };
   } catch (err) {

@@ -49,3 +49,6 @@ pnpm-debug.log*
 # ─── Electron Builder Cache ──────────────────────────────────
 .electron-builder-cache/
 electron-builder.env
+
+# ─── Personal files and Task lists─────────────────────────────────
+fix_and_task_list.md

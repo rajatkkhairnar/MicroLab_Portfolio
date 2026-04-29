@@ -945,9 +945,12 @@ const Settings = () => {
 
               {/* Check Button */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   setUpdateStatus(null);
-                  window.api.checkForUpdate();
+                  const result = await window.api.checkForUpdate();
+                  if (result && !result.success) {
+                    setUpdateStatus({ status: 'error', message: result.error });
+                  }
                 }}
                 disabled={updateStatus?.status === 'downloading'}
                 className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
