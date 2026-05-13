@@ -74,27 +74,27 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   // Consistent spacing tokens (used everywhere)
   // =============================================
   const SP = {
-    page:      '10mm 14mm',       // page padding: top/bottom 10mm, left/right 14mm
-    section:   '14px',            // gap between header→patient, patient→results, results→footer
-    headerPb:  '12px',            // header padding-bottom (above border)
+    page: '10mm 14mm',       // page padding: top/bottom 10mm, left/right 14mm
+    section: '14px',            // gap between header→patient, patient→results, results→footer
+    headerPb: '12px',            // header padding-bottom (above border)
     patientPd: '10px 14px',       // patient info box inner padding
-    testGap:   '16px',            // gap between test sections
-    rowPad:    '5px 0',           // table row cell padding
-    footerPt:  '14px',            // footer padding-top (below border)
+    testGap: '16px',            // gap between test sections
+    rowPad: '5px 0',           // table row cell padding
+    footerPt: '14px',            // footer padding-top (below border)
   };
 
   // =============================================
   // Text size tokens (slightly bumped up)
   // =============================================
   const TXT = {
-    labName:   '22px',   // lab title
-    subInfo:   '14px',   // address, timing, phones
-    patLabel:  '14px',   // patient info labels & values
-    testHead:  '15px',   // test section heading (e.g. "COMPLETE BLOOD COUNT")
-    thRow:     '14px',   // table header row
-    tdRow:     '14px',   // table body row
-    cbcSub:    '12px',   // CBC sub-section header
-    footer:    '14px',   // footer signatory text
+    labName: '22px',   // lab title
+    subInfo: '14px',   // address, timing, phones
+    patLabel: '14px',   // patient info labels & values
+    testHead: '15px',   // test section heading (e.g. "COMPLETE BLOOD COUNT")
+    thRow: '14px',   // table header row
+    tdRow: '14px',   // table body row
+    cbcSub: '12px',   // CBC sub-section header
+    footer: '14px',   // footer signatory text
     footerEnd: '12px',   // "*** End of Report ***"
   };
 
@@ -121,10 +121,10 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
             </div>
           </div>
           <div style="width: 88px; height: 88px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-            ${labProfile.labLogo 
-              ? `<img src="${labProfile.labLogo}" alt="Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
-              : `<div style="width: 72px; height: 72px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 11px; text-align: center;">Lab<br/>Logo</div>`
-            }
+            ${labProfile.labLogo
+        ? `<img src="${labProfile.labLogo}" alt="Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
+        : `<div style="width: 72px; height: 72px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 11px; text-align: center;">Lab<br/>Logo</div>`
+      }
           </div>
         </div>
       </div>`;
@@ -201,7 +201,7 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
           const abnormal = isAbnormal(testName, paramName, value);
 
           rowsHTML += `
-            <tr style="border-bottom: 1px solid #f1f5f9;">
+            <tr>
               <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${paramName}</td>
               <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
               <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, paramName)}</td>
@@ -216,7 +216,7 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
         if (!knownParams.includes(param)) {
           const abnormal = isAbnormal(testName, param, value);
           rowsHTML += `
-            <tr style="border-bottom: 1px solid #f1f5f9;">
+            <tr>
               <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
               <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
               <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
@@ -229,7 +229,7 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       Object.entries(results[testName]).forEach(([param, value]) => {
         const abnormal = isAbnormal(testName, param, value);
         rowsHTML += `
-          <tr style="border-bottom: 1px solid #f1f5f9;">
+          <tr>
             <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
             <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
             <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
