@@ -12,10 +12,13 @@
  * All CSS is inlined — no external stylesheets needed.
  * Lab branding (name, logo, footer) comes from the labProfile object.
  * Test parameters and reference ranges come from testCatalog + user overrides.
+ * 
+ * Options:
+ *   - onlyReport: if true, produces a blank report (no header, footer, logo, watermark)
  */
 import { TEST_CATALOG } from './testCatalog';
 import { getEffectiveParams } from './getEffectiveParams';
-export function generateReportHTML({ order, results, labProfile, template = 'modern', testParamSettings = {} }) {
+export function generateReportHTML({ order, results, labProfile, template = 'modern', testParamSettings = {}, onlyReport = false }) {
   const isLetterhead = template === 'letterhead';
   const isCompact = template === 'compact';
 
@@ -96,12 +99,15 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   };
 
   // --- Build Header ---
+  // When onlyReport is true, skip header entirely
   let headerHTML = '';
-  if (!isLetterhead && template !== 'unique') {
+  if (onlyReport) {
+    headerHTML = '';
+  } else if (!isLetterhead && template !== 'unique') {
     const borderColor = template === 'modern' ? '#2563eb' : '#1e293b';
     const titleColor = template === 'modern' ? '#1e40af' : '#0f172a';
     headerHTML = `
-      <header style="margin-bottom: ${SP.section}; border-bottom: 2px solid ${borderColor}; padding-bottom: ${SP.headerPb};">
+      <div style="border-bottom: 2px solid ${borderColor}; padding-bottom: ${SP.headerPb};">
         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
           <div>
             <h1 style="font-size: ${TXT.labName}; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${titleColor}; margin: 0;">
@@ -121,7 +127,7 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
             }
           </div>
         </div>
-      </header>`;
+      </div>`;
   } else if (isLetterhead) {
     headerHTML = '<div style="height: 140px;"></div>';
   }
@@ -149,41 +155,88 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   let resultsHTML = '';
   const testNames = Object.keys(results);
 
+  // CBC section definitions — defines the visual grouping order
+  const CBC_SECTIONS = [
+    {
+      label: null, // No header for the first group (Blood Reports)
+      params: ['Haemoglobin (Hb)', 'Total WBC Count']
+    },
+    {
+      label: 'Differential WBC Count',
+      params: ['Neutrophils', 'Lymphocytes', 'Mid', 'Granulocytes', 'Eosinophils', 'Monocytes', 'Basophils']
+    },
+    {
+      label: 'Total RBC Count',
+      params: ['Total RBC Count']
+    },
+    {
+      label: 'RBC Indices',
+      params: ['PCV / Haematocrit', 'MCV', 'MCH', 'MCHC', 'Platelet Count', 'PCT', 'MPV', 'RDW', 'PDW']
+    }
+  ];
+
   testNames.forEach((testName, index) => {
     const headingColor = template === 'modern' ? '#1d4ed8' : '#1e293b';
     const borderCol = template === 'modern' ? '#bfdbfe' : '#1e293b';
 
-    let sectionHeaderShown = { diff: false, rbc: false };
-
     let rowsHTML = '';
-    Object.entries(results[testName]).forEach(([param, value]) => {
-      const abnormal = isAbnormal(testName, param, value);
+    const isCBC = testName === 'Complete Blood Count (CBC)' || testName.toLowerCase().includes('cbc');
 
-      // CBC section headers
-      let sectionHeader = '';
-      if (testName === 'Complete Blood Count (CBC)' || testName.toLowerCase().includes('cbc')) {
-        if (param === 'Neutrophils' && !sectionHeaderShown.diff) {
-          sectionHeaderShown.diff = true;
-          sectionHeader = `<tr style="background: rgba(248,250,252,0.8); border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-            <td colspan="4" style="padding: 6px; font-weight: 700; text-align: center; color: #1e293b; text-transform: uppercase; letter-spacing: 2px; font-size: ${TXT.cbcSub};">Differential WBC Count</td>
-          </tr>`;
-        } else if (param === 'PCV / Haematocrit' && !sectionHeaderShown.rbc) {
-          sectionHeaderShown.rbc = true;
-          sectionHeader = `<tr style="background: rgba(248,250,252,0.8); border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-            <td colspan="4" style="padding: 6px; font-weight: 700; text-align: center; color: #1e293b; text-transform: uppercase; letter-spacing: 2px; font-size: ${TXT.cbcSub};">RBC Indices</td>
+    if (isCBC) {
+      // Render CBC in strict section order from CBC_SECTIONS
+      const testResults = results[testName];
+
+      CBC_SECTIONS.forEach(section => {
+        // Section header row
+        if (section.label) {
+          rowsHTML += `<tr style="background: rgba(248,250,252,0.8); border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+            <td colspan="4" style="padding: 6px; font-weight: 700; text-align: center; color: #1e293b; text-transform: uppercase; letter-spacing: 2px; font-size: ${TXT.cbcSub};">${section.label}</td>
           </tr>`;
         }
-      }
 
-      rowsHTML += sectionHeader;
-      rowsHTML += `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
-          <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
-          <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
-          <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
-          <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
-        </tr>`;
-    });
+        // Parameter rows in defined order
+        section.params.forEach(paramName => {
+          const value = testResults[paramName];
+          if (value === undefined && value !== '') return; // skip if not entered
+          const abnormal = isAbnormal(testName, paramName, value);
+
+          rowsHTML += `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${paramName}</td>
+              <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, paramName)}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, paramName)}</td>
+            </tr>`;
+        });
+      });
+
+      // Catch any parameters not in CBC_SECTIONS (future-proofing)
+      const knownParams = CBC_SECTIONS.flatMap(s => s.params);
+      Object.entries(testResults).forEach(([param, value]) => {
+        if (!knownParams.includes(param)) {
+          const abnormal = isAbnormal(testName, param, value);
+          rowsHTML += `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
+              <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
+            </tr>`;
+        }
+      });
+    } else {
+      // Non-CBC tests: render in natural order
+      Object.entries(results[testName]).forEach(([param, value]) => {
+        const abnormal = isAbnormal(testName, param, value);
+        rowsHTML += `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
+            <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
+            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
+            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
+          </tr>`;
+      });
+    }
 
     resultsHTML += `
       <div style="margin-bottom: ${SP.testGap}; ${index > 0 ? `padding-top: ${SP.testGap};` : ''} page-break-inside: auto;">
@@ -207,10 +260,11 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   });
 
   // --- Build Footer ---
-  let footerHTML = '';
-  if (!isLetterhead && template !== 'unique') {
-    footerHTML = `
-      <footer style="margin-top: 40px; padding-top: ${SP.footerPt}; border-top: 1px solid #e2e8f0; page-break-inside: avoid;">
+  // When onlyReport is true, skip footer entirely
+  let footerInnerHTML = '';
+  if (!onlyReport && !isLetterhead && template !== 'unique') {
+    footerInnerHTML = `
+      <div style="padding-top: ${SP.footerPt}; border-top: 1px solid #e2e8f0;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; margin-bottom: 16px;">
           <div style="text-align: left;">
             ${labProfile.labAssistant ? `
@@ -231,14 +285,21 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
         <div style="text-align: center; font-size: ${TXT.footerEnd}; color: #94a3b8;">
           ${labProfile.footerText || '*** End of Report ***'}
         </div>
-      </footer>`;
+      </div>`;
   }
 
-  // --- Watermark ---
-  const watermarkHTML = labProfile.labLogo ? `
-    <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0.10; z-index: 0;">
-      <img src="${labProfile.labLogo}" style="width: 50%; max-height: 50%; object-fit: contain;" />
-    </div>` : '';
+  // --- Watermark / Background Logo ---
+  // Use dedicated watermarkLogo if set, otherwise fall back to labLogo
+  // When onlyReport is true, skip watermark entirely
+  const watermarkSrc = labProfile.watermarkLogo || labProfile.labLogo;
+  const showWatermark = !onlyReport && watermarkSrc;
+
+  // =============================================
+  // Use a <table> layout trick so that:
+  //   - <thead> repeats as a running header on every printed page
+  //   - <tfoot> repeats as a running footer on every printed page
+  //   - The watermark uses position:fixed to appear on all pages
+  // =============================================
 
   // --- Full HTML Document ---
   return `<!DOCTYPE html>
@@ -260,29 +321,107 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .page {
-      width: 210mm;
-      padding: ${SP.page};
-      position: relative;
+
+    /* Watermark — position:fixed repeats on every printed page in Chromium */
+    .watermark {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0.10;
+      z-index: 0;
     }
+    .watermark img {
+      width: 50%;
+      max-height: 50%;
+      object-fit: contain;
+    }
+
+    /* 
+     * Running header/footer trick using <table> with thead/tfoot.
+     * In Chromium's print engine, <thead> and <tfoot> of a table
+     * repeat on every page automatically.
+     */
+    .report-table {
+      width: 210mm;
+      border-collapse: collapse;
+    }
+
+    /* Header row: repeats on each page */
+    .report-table > thead > tr > td {
+      padding: 10mm 14mm 0 14mm;
+    }
+    .report-table > thead .header-content {
+      margin-bottom: ${SP.section};
+    }
+
+    /* Footer row: repeats on each page */
+    .report-table > tfoot > tr > td {
+      padding: 0 14mm 10mm 14mm;
+      vertical-align: bottom;
+    }
+    .report-table > tfoot .footer-content {
+      margin-top: 20px;
+    }
+
+    /* Body content */
+    .report-table > tbody > tr > td {
+      padding: 0 14mm;
+      vertical-align: top;
+    }
+
     .content {
       position: relative;
       z-index: 10;
       width: 100%;
     }
-    table { border-collapse: collapse; }
+
+    table.inner-table { border-collapse: collapse; }
   </style>
 </head>
 <body>
-  ${watermarkHTML}
-  <div class="page">
-    <div class="content">
-      ${headerHTML}
-      ${patientInfoHTML}
-      ${resultsHTML}
-      ${footerHTML}
-    </div>
-  </div>
+  ${showWatermark ? `
+  <div class="watermark">
+    <img src="${watermarkSrc}" />
+  </div>` : ''}
+
+  <table class="report-table">
+    <!-- THEAD: Running header (repeats on every page) -->
+    <thead>
+      <tr>
+        <td>
+          <div class="header-content">
+            ${headerHTML}
+          </div>
+        </td>
+      </tr>
+    </thead>
+
+    <!-- TFOOT: Running footer (repeats on every page) -->
+    <tfoot>
+      <tr>
+        <td>
+          <div class="footer-content">
+            ${footerInnerHTML}
+          </div>
+        </td>
+      </tr>
+    </tfoot>
+
+    <!-- TBODY: Main report content -->
+    <tbody>
+      <tr>
+        <td>
+          <div class="content">
+            ${patientInfoHTML}
+            ${resultsHTML}
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
 </body>
 </html>`;
 }

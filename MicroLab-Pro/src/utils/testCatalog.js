@@ -22,6 +22,8 @@ export const TEST_CATALOG = {
     // Differential WBC Count
     { name: 'Neutrophils', unit: '%', ref: '40 - 70', type: 'number' },
     { name: 'Lymphocytes', unit: '%', ref: '20 - 40', type: 'number' },
+    { name: 'Mid', unit: '%', ref: '3 - 10', type: 'number' },
+    { name: 'Granulocytes', unit: '%', ref: '50 - 70', type: 'number' },
     { name: 'Eosinophils', unit: '%', ref: '1 - 6', type: 'number' },
     { name: 'Monocytes', unit: '%', ref: '2 - 10', type: 'number' },
     { name: 'Basophils', unit: '%', ref: '0 - 1', type: 'number' },
@@ -33,6 +35,10 @@ export const TEST_CATALOG = {
     { name: 'MCH', unit: 'pg', ref: '27 - 32', type: 'number' },
     { name: 'MCHC', unit: 'g/dL', ref: '31.5 - 34.5', type: 'number' },
     { name: 'Platelet Count', unit: 'lakh/cumm', ref: '1.5 - 4.5', type: 'number' },
+    { name: 'PCT', unit: '%', ref: '0.15 - 0.40', type: 'number' },
+    { name: 'MPV', unit: 'fL', ref: '7.5 - 11.5', type: 'number' },
+    { name: 'RDW', unit: '%', ref: '11.5 - 14.5', type: 'number' },
+    { name: 'PDW', unit: '%', ref: '10 - 18', type: 'number' },
   ],
 
   // 2. BIOCHEMISTRY (Lipid Profile)

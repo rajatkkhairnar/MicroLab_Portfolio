@@ -2,10 +2,11 @@
  * LabOperations.jsx — Lab Test Order Management
  * 
  * Core workbench for lab staff to manage the full test lifecycle:
- * - View all test orders (filterable by today/all, searchable)
+ * - View all test orders (filterable by timeframe/status, searchable)
  * - Book new tests via multi-step modal (patient → tests → payment)
  * - Enter test results and generate PDF reports via Electron print
  * - Status tracking: Pending → Processing → Completed
+ * - Stackable dropdown filters: timeframe + status combined
  */
 import React, { useState, useEffect } from 'react';
 import { 
@@ -15,7 +16,7 @@ import {
   RefreshCw, 
   CheckCircle2, 
   Clock, 
-  Activity 
+  Activity
 } from 'lucide-react';
 import EnterResultsModal from '../components/EnterResultsModal';
 import BookTestModal from '../components/BookTestModal';
@@ -24,18 +25,21 @@ import { generateReportHTML } from '../utils/generateReportHTML';
 const LabOperations = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all' or 'today'
   const [searchTerm, setSearchTerm] = useState('');
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  
-  // Fetch all orders from database, filtered by current filter/search state
+
+  // --- Stackable Filters (dropdown-based) ---
+  const [timeFilter, setTimeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Fetch all orders from database
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const data = await window.api.getLabOrders({filter, search: searchTerm});
+      const data = await window.api.getLabOrders({ filter: timeFilter, search: searchTerm });
       setOrders(data);
     } catch (err) {
       console.error(err);
@@ -44,55 +48,52 @@ const LabOperations = () => {
     }
   };
 
-  // Refresh when filter or search changes (with debounce for search)
+  // Refresh when time filter or search changes
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchOrders();
-    }, 300);
+    const timer = setTimeout(() => { fetchOrders(); }, 300);
     return () => clearTimeout(timer);
-  }, [filter, searchTerm]);
+  }, [timeFilter, searchTerm]);
 
-  // --- 2. Handle Saving Results (Database + PDF) ---
+  // Client-side status filter on top of server-filtered orders
+  const filteredOrders = statusFilter === 'all'
+    ? orders
+    : orders.filter(o => o.order_status === statusFilter);
+
+  // Count helpers for the summary line
+  const completedCount = orders.filter(o => o.order_status === 'Completed').length;
+  const pendingCount = orders.filter(o => o.order_status === 'Pending').length;
+  const processingCount = orders.filter(o => o.order_status === 'Processing').length;
+
+  // --- Handle Saving Results (Database + PDF) ---
   const handleResultsSaved = async (data, action) => {
     try {
-      // Step A: Save to Database (Updates Status to 'Completed')
-      await window.api.saveTestResults({ 
-        orderId: selectedOrder.id, 
-        results: data 
-      });
-
-      // Step B: Refresh List to show new status
+      await window.api.saveTestResults({ orderId: selectedOrder.id, results: data });
       fetchOrders();
 
-      // Step C: Handle Printing via OS Print Dialog
-      if (action === 'print') {
+      if (action === 'print' || action === 'print-only') {
+        const isOnlyReport = action === 'print-only';
         setIsPrinting(true);
         try {
-          // Load lab settings for the report
           const settings = await window.api.getLabProfile();
           const labProfile = {};
           settings.forEach(item => { labProfile[item.key] = item.value; });
 
-          // Parse parameter-level customizations
           let testParamSettings = {};
           if (labProfile.testParamSettings) {
             testParamSettings = JSON.parse(labProfile.testParamSettings);
           }
 
-          // Generate the report HTML
           const htmlContent = generateReportHTML({
             order: selectedOrder,
             results: data,
             labProfile,
             template: 'modern',
-            testParamSettings
+            testParamSettings,
+            onlyReport: isOnlyReport
           });
 
-          // Send to Electron main process for printing
           const result = await window.api.printReport(htmlContent, selectedOrder.patient_name || 'Patient');
-          if (result && !result.success) {
-            console.error('Print failed:', result.error);
-          }
+          if (result && !result.success) console.error('Print failed:', result.error);
         } catch (printErr) {
           console.error('Print error:', printErr);
           alert('Failed to open print dialog. Please try again.');
@@ -147,9 +148,10 @@ const LabOperations = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center gap-4">
-        <div className="relative flex-1">
+      {/* Filter Bar — Stackable dropdown filters */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-4">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
             type="text" 
@@ -159,20 +161,62 @@ const LabOperations = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
+
+        {/* Time Duration Filter */}
+        <select 
+          value={timeFilter} 
+          onChange={(e) => setTimeFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-200 rounded-lg bg-white outline-none focus:border-blue-500 text-sm"
+        >
+          <option value="all">All Time</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+        </select>
+
+        {/* Status Filter */}
+        <select 
+          value={statusFilter} 
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 border border-slate-200 rounded-lg bg-white outline-none focus:border-blue-500 text-sm"
+        >
+          <option value="all">All Status</option>
+          <option value="Completed">Completed</option>
+          <option value="Pending">Pending</option>
+          <option value="Processing">Processing</option>
+        </select>
+
+        {/* Clear Filters */}
+        {(timeFilter !== 'all' || statusFilter !== 'all') && (
+          <button
+            onClick={() => { setTimeFilter('all'); setStatusFilter('all'); }}
+            className="px-3 py-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors font-medium"
           >
-            All Orders
+            Clear Filters
           </button>
-          <button 
-            onClick={() => setFilter('today')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'today' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
-          >
-            Today Only
-          </button>
-        </div>
+        )}
+      </div>
+
+      {/* Summary Bar */}
+      <div className="flex items-center gap-4 px-1 text-sm text-slate-500">
+        <span className="font-medium text-slate-700">
+          {filteredOrders.length} orders
+        </span>
+        <span className="text-slate-300">|</span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+          {completedCount} completed
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+          {pendingCount} pending
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>
+          {processingCount} processing
+        </span>
       </div>
 
       {/* Orders Table */}
@@ -189,7 +233,7 @@ const LabOperations = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {orders.length === 0 && !loading ? (
+            {filteredOrders.length === 0 && !loading ? (
               <tr>
                 <td colSpan="6" className="px-6 py-12 text-center text-slate-400">
                   <FlaskConical className="mx-auto mb-2 opacity-50" size={32} />
@@ -197,7 +241,7 @@ const LabOperations = () => {
                 </td>
               </tr>
             ) : (
-              orders.map((order) => (
+              filteredOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <span className="font-mono text-xs font-bold text-slate-600">#{order.id}</span>
@@ -251,8 +295,6 @@ const LabOperations = () => {
         order={selectedOrder}
         onSuccess={handleResultsSaved}
       />
-      
-    
     </div>
   );
 };

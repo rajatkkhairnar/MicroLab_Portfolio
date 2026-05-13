@@ -427,6 +427,41 @@ const Settings = () => {
                         </div>
                       )}
                     </div>
+                    <div className="flex-shrink-0">
+                      <label className="block text-sm font-medium text-slate-400 mb-2">Watermark Logo</label>
+                      {labProfile.watermarkLogo ? (
+                        <div className="relative w-24 h-24 bg-white rounded-lg border border-slate-600 flex items-center justify-center p-2 group">
+                          <img src={labProfile.watermarkLogo} alt="Watermark" className="max-w-full max-h-full object-contain opacity-30" />
+                          <button
+                            type="button"
+                            onClick={() => setLabProfile({ ...labProfile, watermarkLogo: '' })}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-24 h-24 bg-slate-800 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center hover:border-blue-500 transition-colors relative cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => setLabProfile({ ...labProfile, watermarkLogo: reader.result });
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <div className="text-center pointer-events-none">
+                            <span className="text-2xl text-slate-400 block">+</span>
+                            <span className="text-xs text-slate-500">Upload</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-slate-400 mb-1">Lab Name (Appears at top)</label>
                       <input

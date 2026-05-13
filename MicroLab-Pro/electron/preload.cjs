@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // ─── 8. Lab Operations ─────────────────────────────────────────────
   getLabOrders: (params) => ipcRenderer.invoke('get-lab-orders', params),
+  getLabStats: () => ipcRenderer.invoke('get-lab-stats'),
+  getDoctorCommissions: (params) => ipcRenderer.invoke('get-doctor-commissions', params),
   getOrderResults: (orderId) => ipcRenderer.invoke('get-order-results', orderId),
   getDoctors: () => ipcRenderer.invoke('get-doctors'),
   addDoctor: (doc) => ipcRenderer.invoke('add-doctor', doc),

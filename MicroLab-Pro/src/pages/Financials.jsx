@@ -4,9 +4,12 @@
  * Provides revenue analytics, pending dues tracking, and transaction history.
  * Features: Time-filtered stats cards, transaction ledger table, payment mode
  * pie chart breakdown, CSV export for financial reports.
+ * 
+ * Doctor Commission Panel: Per-doctor referral cards with time filter showing
+ * clear breakdown of patients, revenue, and commission due.
  */
 import React, { useState, useEffect } from 'react';
-import { IndianRupee, Wallet, CreditCard, TrendingUp, Download } from 'lucide-react';
+import { Wallet, CreditCard, TrendingUp, Download, Stethoscope, Users, Building2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const Financials = () => {
@@ -14,8 +17,13 @@ const Financials = () => {
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
+  // --- Doctor Commission State ---
+  const [commissionPeriod, setCommissionPeriod] = useState('all');
+  const [commissions, setCommissions] = useState([]);
+  const [commissionLoading, setCommissionLoading] = useState(false);
 
   useEffect(() => { loadFinancials(); }, [filter]);
+  useEffect(() => { loadCommissions(); }, [commissionPeriod]);
 
   const loadFinancials = async () => {
     setLoading(true);
@@ -24,6 +32,15 @@ const Financials = () => {
       setData(result);
     } catch (err) { console.error(err); } 
     finally { setLoading(false); }
+  };
+
+  const loadCommissions = async () => {
+    setCommissionLoading(true);
+    try {
+      const result = await window.api.getDoctorCommissions({ period: commissionPeriod });
+      setCommissions(result);
+    } catch (err) { console.error(err); }
+    finally { setCommissionLoading(false); }
   };
 
   // --- SETTLE PAYMENT LOGIC ---
@@ -35,7 +52,7 @@ const Financials = () => {
     if (isNaN(amount) || amount <= 0) return alert("Invalid amount");
 
     await window.api.settleDue({ invoiceId, amount, mode: 'Cash' });
-    loadFinancials(); // Refresh UI
+    loadFinancials();
   };
 
   const chartData = [
@@ -43,6 +60,14 @@ const Financials = () => {
     { name: 'UPI', value: data.stats.byMode?.UPI || 0, color: '#2563EB' },
     { name: 'Card', value: data.stats.byMode?.Card || 0, color: '#F59E0B' },
   ].filter(item => item.value > 0);
+
+  const periodLabels = {
+    all: 'All Time', today: 'Today', yesterday: 'Yesterday',
+    week: 'This Week', month: 'This Month', year: 'This Year',
+  };
+
+  const totalCommission = commissions.reduce((sum, c) => sum + (c.commission_amount || 0), 0);
+  const totalReferredPatients = commissions.reduce((sum, c) => sum + (c.patient_count || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -101,8 +126,110 @@ const Financials = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ═══ Doctor Referral Commission Section ═══ */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        {/* Section Header with Filter */}
+        <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-violet-100 rounded-lg">
+              <Stethoscope className="text-violet-600" size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Doctor Referral Commissions</h2>
+              <p className="text-xs text-slate-400">Commission payable to referring doctors</p>
+            </div>
+          </div>
+          <select 
+            value={commissionPeriod} 
+            onChange={(e) => setCommissionPeriod(e.target.value)}
+            className="px-4 py-2 border border-slate-200 rounded-lg bg-white outline-none focus:border-violet-400 text-sm"
+          >
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+          </select>
+        </div>
 
+        {/* Doctor Commission Cards */}
+        <div className="p-5">
+          {commissions.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              <Stethoscope className="mx-auto mb-2 opacity-30" size={32} />
+              <p className="text-sm">No doctor referrals found for {periodLabels[commissionPeriod].toLowerCase()}</p>
+            </div>
+          ) : (
+            <>
+              {/* Per-doctor cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+                {commissions.map((doc) => (
+                  <div key={doc.doctor_id} className="border border-slate-200 rounded-xl p-4 hover:border-violet-300 hover:shadow-md transition-all">
+                    {/* Doctor name + clinic */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-violet-700 font-bold text-sm">{doc.doctor_name.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">Dr. {doc.doctor_name}</p>
+                        {doc.clinic_name && (
+                          <p className="text-xs text-slate-400 flex items-center gap-1 truncate">
+                            <Building2 size={10} /> {doc.clinic_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stats grid */}
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div className="bg-slate-50 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Patients</p>
+                        <p className="text-lg font-bold text-slate-800">{doc.patient_count}</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Revenue</p>
+                        <p className="text-lg font-bold text-slate-800">₹{(doc.total_revenue || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-2 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Rate</p>
+                        <p className="text-lg font-bold text-slate-800">{doc.commission_rate}%</p>
+                      </div>
+                    </div>
+
+                    {/* Commission amount — the key takeaway */}
+                    <div className="bg-violet-50 border border-violet-200 rounded-lg p-3 flex items-center justify-between">
+                      <span className="text-xs font-medium text-violet-600 uppercase">Commission Due</span>
+                      <span className="text-xl font-bold text-violet-700">₹{(doc.commission_amount || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Summary */}
+              <div className="bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl p-5 text-white flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-violet-200 text-sm font-medium">Total Commission Due — {periodLabels[commissionPeriod]}</p>
+                  <p className="text-3xl font-bold mt-1">₹{totalCommission.toLocaleString()}</p>
+                </div>
+                <div className="flex gap-6">
+                  <div className="text-center">
+                    <p className="text-violet-200 text-xs uppercase">Doctors</p>
+                    <p className="text-2xl font-bold">{commissions.length}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-violet-200 text-xs uppercase">Patients</p>
+                    <p className="text-2xl font-bold">{totalReferredPatients}</p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Ledger + Chart Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Ledger Table */}
         <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-100"><h2 className="text-lg font-bold text-slate-800">Transaction Ledger</h2></div>

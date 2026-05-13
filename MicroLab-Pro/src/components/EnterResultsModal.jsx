@@ -9,7 +9,7 @@
  * (respecting any custom overrides from Settings). Supports Save and Save+Print.
  */
 import React, { useState, useEffect } from 'react';
-import { X, Save, Printer, FileCheck, AlertCircle } from 'lucide-react';
+import { X, Save, Printer, FileCheck, AlertCircle, FileText } from 'lucide-react';
 import { getEffectiveParams } from '../utils/getEffectiveParams';
 
 const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
@@ -190,6 +190,14 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
             >
               <Save size={18} />
               <span>Save Results</span>
+            </button>
+            <button 
+              onClick={() => onSuccess(results, 'print-only')}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition-colors"
+              title="Print report without header, footer, or logo"
+            >
+              <FileText size={18} />
+              <span>Only Report</span>
             </button>
             <button 
               onClick={() => onSuccess(results, 'print')}

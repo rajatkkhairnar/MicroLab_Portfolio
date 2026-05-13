@@ -373,6 +373,72 @@ ipcMain.handle('save-lab-profile', (_, profile) => {
 
 // --- 7. Lab Operations (New) ---
 
+// 7.0 Lab Operations Stats (patient counts by timeframe, status counts)
+ipcMain.handle('get-lab-stats', () => {
+  const stats = {};
+
+  // Helper: count distinct invoices in a date range
+  const countByRange = (dateCondition) => {
+    return db.prepare(`
+      SELECT COUNT(DISTINCT invoices.id) as count
+      FROM invoices
+      JOIN lab_tests ON lab_tests.invoice_id = invoices.id
+      WHERE ${dateCondition}
+    `).get().count || 0;
+  };
+
+  // Timeframe counts
+  stats.today = countByRange(`date(invoices.created_at) = date('now', 'localtime')`);
+  stats.yesterday = countByRange(`date(invoices.created_at) = date('now', 'localtime', '-1 day')`);
+  stats.thisWeek = countByRange(`invoices.created_at >= date('now', 'localtime', 'weekday 0', '-6 days')`);
+  stats.thisMonth = countByRange(`strftime('%Y-%m', invoices.created_at) = strftime('%Y-%m', 'now', 'localtime')`);
+  stats.thisYear = countByRange(`strftime('%Y', invoices.created_at) = strftime('%Y', 'now', 'localtime')`);
+
+  // Status counts (across all time)
+  const statusCounts = db.prepare(`
+    SELECT 
+      SUM(CASE WHEN lt.status = 'Completed' THEN 1 ELSE 0 END) as completed,
+      SUM(CASE WHEN lt.status = 'Pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN lt.status = 'Processing' THEN 1 ELSE 0 END) as processing,
+      COUNT(lt.id) as total
+    FROM lab_tests lt
+  `).get();
+  stats.completedTests = statusCounts.completed || 0;
+  stats.pendingTests = statusCounts.pending || 0;
+  stats.processingTests = statusCounts.processing || 0;
+  stats.totalTests = statusCounts.total || 0;
+
+  return stats;
+});
+
+// 7.0b Doctor Commission Report
+ipcMain.handle('get-doctor-commissions', (_, { period }) => {
+  let dateCondition = '1=1'; // all time
+  if (period === 'today') dateCondition = `date(invoices.created_at) = date('now', 'localtime')`;
+  else if (period === 'yesterday') dateCondition = `date(invoices.created_at) = date('now', 'localtime', '-1 day')`;
+  else if (period === 'week') dateCondition = `invoices.created_at >= date('now', 'localtime', 'weekday 0', '-6 days')`;
+  else if (period === 'month') dateCondition = `strftime('%Y-%m', invoices.created_at) = strftime('%Y-%m', 'now', 'localtime')`;
+  else if (period === 'year') dateCondition = `strftime('%Y', invoices.created_at) = strftime('%Y', 'now', 'localtime')`;
+
+  const rows = db.prepare(`
+    SELECT 
+      doctors.id as doctor_id,
+      doctors.name as doctor_name,
+      doctors.clinic_name,
+      doctors.commission_rate,
+      COUNT(DISTINCT invoices.id) as patient_count,
+      SUM(invoices.total_amount) as total_revenue,
+      ROUND(SUM(invoices.total_amount * doctors.commission_rate / 100.0), 2) as commission_amount
+    FROM invoices
+    JOIN doctors ON invoices.doctor_id = doctors.id
+    WHERE ${dateCondition}
+    GROUP BY doctors.id
+    ORDER BY commission_amount DESC
+  `).all();
+
+  return rows;
+});
+
 // Get all Active Orders (Joined with Patient Name & Test List)
 ipcMain.handle('get-lab-orders', (_, { filter, search }) => {
   let sql = `
@@ -400,6 +466,10 @@ ipcMain.handle('get-lab-orders', (_, { filter, search }) => {
 
   const conditions = [];
   if (filter === 'today') conditions.push(`date(invoices.created_at) = date('now', 'localtime')`);
+  if (filter === 'yesterday') conditions.push(`date(invoices.created_at) = date('now', 'localtime', '-1 day')`);
+  if (filter === 'week') conditions.push(`invoices.created_at >= date('now', 'localtime', 'weekday 0', '-6 days')`);
+  if (filter === 'month') conditions.push(`strftime('%Y-%m', invoices.created_at) = strftime('%Y-%m', 'now', 'localtime')`);
+  if (filter === 'year') conditions.push(`strftime('%Y', invoices.created_at) = strftime('%Y', 'now', 'localtime')`);
   if (search) conditions.push(`(patients.name LIKE '%${search}%' OR invoices.id LIKE '%${search}%')`);
 
   if (conditions.length > 0) sql += ` WHERE ` + conditions.join(' AND ');
