@@ -217,10 +217,10 @@ ipcMain.handle('get-patients', (_, searchTerm) => {
 ipcMain.handle('add-patient', (_, data) => {
   try {
     const stmt = db.prepare(`
-      INSERT INTO patients (uhid, name, age, gender, phone, address, is_vip)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO patients (uhid, name, age, gender, phone, address, is_vip, remarks)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const info = stmt.run(data.uhid, data.name, data.age, data.gender, data.phone, data.address, data.is_vip ? 1 : 0);
+    const info = stmt.run(data.uhid, data.name, data.age, data.gender, data.phone, data.address, data.is_vip ? 1 : 0, data.remarks || '');
     return { success: true, id: info.lastInsertRowid };
   } catch (err) {
     return { success: false, error: err.message };
@@ -249,8 +249,8 @@ ipcMain.handle('delete-patient', (_, id) => {
 
 ipcMain.handle('update-patient', (_, p) => {
   try {
-    db.prepare(`UPDATE patients SET name=?, age=?, gender=?, phone=?, address=? WHERE id=?`)
-      .run(p.name, p.age, p.gender, p.phone, p.address, p.id);
+    db.prepare(`UPDATE patients SET name=?, age=?, gender=?, phone=?, address=?, remarks=? WHERE id=?`)
+      .run(p.name, p.age, p.gender, p.phone, p.address, p.remarks || '', p.id);
     return { success: true };
   } catch (err) { return { success: false, error: err.message }; }
 });
@@ -263,8 +263,8 @@ ipcMain.handle('get-inventory', () => {
 ipcMain.handle('add-inventory', (_, item) => {
   try {
     const stmt = db.prepare(`
-      INSERT INTO inventory (item_name, sku, category, current_stock, min_reorder_level, unit, batch_number, expiry_date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO inventory (item_name, sku, category, current_stock, min_reorder_level, unit, batch_number, expiry_date, cost_per_unit)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       item.name,
@@ -274,7 +274,8 @@ ipcMain.handle('add-inventory', (_, item) => {
       item.minLevel,
       item.unit,
       item.batch,
-      item.expiry
+      item.expiry,
+      item.costPerUnit || 0
     );
     return { success: true };
   } catch (err) {
@@ -300,10 +301,10 @@ ipcMain.handle('update-inventory', (_, item) => {
   try {
     const stmt = db.prepare(`
       UPDATE inventory 
-      SET item_name = ?, sku = ?, category = ?, min_reorder_level = ?
+      SET item_name = ?, sku = ?, category = ?, min_reorder_level = ?, cost_per_unit = ?
       WHERE id = ?
     `);
-    stmt.run(item.name, item.sku, item.category, item.minLevel, item.id);
+    stmt.run(item.name, item.sku, item.category, item.minLevel, item.costPerUnit || 0, item.id);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -312,7 +313,7 @@ ipcMain.handle('update-inventory', (_, item) => {
 
 // 5. Financials / Invoicing
 ipcMain.handle('create-invoice', (_, data) => {
-  // Transaction: Create Invoice -> Add Tests -> Update Patient Due
+  // Transaction: Create Invoice -> Add Tests -> Auto-Deduct Inventory -> Update Patient Due
   const insertInvoice = db.transaction((invoice) => {
     const invStmt = db.prepare(`
       INSERT INTO invoices (patient_id, doctor_id, total_amount, paid_amount, payment_mode, status)
@@ -324,6 +325,25 @@ ipcMain.handle('create-invoice', (_, data) => {
     const testStmt = db.prepare('INSERT INTO lab_tests (invoice_id, test_name) VALUES (?, ?)');
     for (const test of invoice.tests) {
       testStmt.run(info.lastInsertRowid, test);
+    }
+
+    // Feature 5: Auto-deduct inventory based on test-inventory linkages
+    try {
+      const linksRow = db.prepare("SELECT value FROM settings WHERE key = 'testInventoryLinks'").get();
+      if (linksRow && linksRow.value) {
+        const links = JSON.parse(linksRow.value);
+        const deductStmt = db.prepare('UPDATE inventory SET current_stock = MAX(current_stock - ?, 0) WHERE id = ?');
+        for (const testName of invoice.tests) {
+          const itemsForTest = links[testName];
+          if (itemsForTest && Array.isArray(itemsForTest)) {
+            for (const link of itemsForTest) {
+              deductStmt.run(link.quantity, link.inventoryId);
+            }
+          }
+        }
+      }
+    } catch (linkErr) {
+      console.error('Auto-deduction warning:', linkErr.message);
     }
 
     return info.lastInsertRowid;
@@ -812,6 +832,28 @@ ipcMain.handle('install-update', () => {
 // IPC: Get current app version
 ipcMain.handle('get-app-version', () => {
   return app.getVersion();
+});
+
+// --- 11. Test-Inventory Linkages (Feature 5) ---
+
+// Get test-inventory linkage configuration
+ipcMain.handle('get-test-inventory-links', () => {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'testInventoryLinks'").get();
+    return { success: true, data: row ? JSON.parse(row.value) : {} };
+  } catch (err) {
+    return { success: false, error: err.message, data: {} };
+  }
+});
+
+// Save test-inventory linkage configuration
+ipcMain.handle('save-test-inventory-links', (_, linksData) => {
+  try {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('testInventoryLinks', JSON.stringify(linksData));
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 // --- App Lifecycle ---

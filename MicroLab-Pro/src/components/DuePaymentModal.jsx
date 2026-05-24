@@ -14,6 +14,8 @@ const DuePaymentModal = ({ isOpen, onClose, patient, onSuccess }) => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payAmounts, setPayAmounts] = useState({}); // Store input values per invoice
+  const [payModes, setPayModes] = useState({}); // Store payment mode per invoice
+  const [customModes, setCustomModes] = useState({}); // Custom mode text per invoice
   const [processingId, setProcessingId] = useState(null); // Which invoice is being paid?
 
   const loadDues = async () => {
@@ -64,11 +66,14 @@ const DuePaymentModal = ({ isOpen, onClose, patient, onSuccess }) => {
     setProcessingId(inv.id);
 
     try {
+      const selectedMode = payModes[inv.id] || 'Cash';
+      const finalMode = selectedMode === 'Any Other' ? (customModes[inv.id] || 'Other') : selectedMode;
+
       // 1. Send to Backend
       await window.api.settleDue({ 
         invoiceId: inv.id, 
         amount: amountToPay, 
-        mode: 'Cash' 
+        mode: finalMode 
       });
 
       // 2. Refresh Parent (Financials/Patient Directory)
@@ -145,6 +150,37 @@ const DuePaymentModal = ({ isOpen, onClose, patient, onSuccess }) => {
                         <p className="text-xs text-slate-500 uppercase font-bold">Current Due</p>
                         <p className="text-xl font-bold text-red-600">₹{due}</p>
                       </div>
+                    </div>
+
+                    {/* Payment Mode Selection */}
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-slate-500 uppercase mb-1.5">Payment Mode</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {['Cash', 'UPI', 'Card', 'Any Other'].map(mode => {
+                          const isActive = (payModes[inv.id] || 'Cash') === mode;
+                          return (
+                            <button
+                              key={mode}
+                              onClick={() => setPayModes(prev => ({ ...prev, [inv.id]: mode }))}
+                              className={`px-3 py-1 border rounded-md text-xs font-medium transition-colors
+                                ${isActive
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                            >
+                              {mode}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(payModes[inv.id] === 'Any Other') && (
+                        <input
+                          type="text"
+                          placeholder="e.g. PMJAY, Ayushman Card"
+                          className="w-full mt-1.5 px-3 py-1.5 border border-slate-300 rounded-md text-xs outline-none focus:border-blue-500"
+                          value={customModes[inv.id] || ''}
+                          onChange={(e) => setCustomModes(prev => ({ ...prev, [inv.id]: e.target.value }))}
+                        />
+                      )}
                     </div>
 
                     {/* Payment Input Area */}

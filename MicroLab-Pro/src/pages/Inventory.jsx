@@ -4,13 +4,16 @@
  * Manages reagents, consumables, equipment, and rapid kits.
  * Features: Stock level tracking with visual bars, low-stock/expiry alerts,
  * quick add/remove stock, CRUD operations for inventory items.
+ * Cost per unit display (Feature 4).
+ * Test-Inventory Linkages configuration (Feature 5).
  */
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Plus, AlertTriangle, Package, CalendarClock, ArrowDownCircle, ArrowUpCircle, Trash2, Edit
+  Search, Plus, AlertTriangle, Package, CalendarClock, ArrowDownCircle, ArrowUpCircle, Trash2, Edit, Link2, Save, X, ChevronDown, ChevronUp
 } from 'lucide-react';
 import AddInventoryModal from '../components/AddInventoryModal';
 import EditInventoryModal from '../components/EditInventoryModal';
+import { DEFAULT_TESTS } from '../utils/defaultTests';
 
 const Inventory = () => {
   const [items, setItems] = useState([]);
@@ -30,6 +33,13 @@ const Inventory = () => {
     totalItems: 0
   });
 
+  // --- Feature 5: Test Linkages ---
+  const [showLinkages, setShowLinkages] = useState(false);
+  const [testLinks, setTestLinks] = useState({}); // { "CBC": [{ inventoryId, itemName, quantity }], ... }
+  const [availableTests, setAvailableTests] = useState([]);
+  const [selectedTest, setSelectedTest] = useState('');
+  const [linkSaving, setLinkSaving] = useState(false);
+
   const loadInventory = async () => {
     try {
       const data = await window.api.getInventory();
@@ -42,8 +52,38 @@ const Inventory = () => {
     }
   };
 
+  const loadTestLinks = async () => {
+    try {
+      const result = await window.api.getTestInventoryLinks();
+      if (result.success && result.data) {
+        setTestLinks(result.data);
+      }
+    } catch (err) {
+      console.error("Failed to load test links:", err);
+    }
+  };
+
+  const loadAvailableTests = async () => {
+    try {
+      const settings = await window.api.getLabProfile();
+      const profileObj = {};
+      settings.forEach(item => { profileObj[item.key] = item.value; });
+
+      let tests = DEFAULT_TESTS.map(t => ({...t, enabled: true}));
+      if (profileObj.testPricing) {
+        const parsed = JSON.parse(profileObj.testPricing);
+        tests = parsed.filter(t => t.enabled !== false);
+      }
+      setAvailableTests(tests);
+    } catch (err) {
+      console.error("Failed to load tests:", err);
+    }
+  };
+
   useEffect(() => {
     loadInventory();
+    loadTestLinks();
+    loadAvailableTests();
   }, []);
 
   const calculateStats = (data) => {
@@ -86,6 +126,52 @@ const Inventory = () => {
     item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // --- Feature 5: Test Linkage Handlers ---
+  const addItemToTest = (testName, inventoryId) => {
+    const inv = items.find(i => i.id === parseInt(inventoryId));
+    if (!inv) return;
+
+    // Check if already linked
+    const existing = testLinks[testName] || [];
+    if (existing.find(l => l.inventoryId === inv.id)) return;
+
+    setTestLinks(prev => ({
+      ...prev,
+      [testName]: [...(prev[testName] || []), { inventoryId: inv.id, itemName: inv.item_name, quantity: 1 }]
+    }));
+  };
+
+  const updateLinkQuantity = (testName, inventoryId, qty) => {
+    setTestLinks(prev => ({
+      ...prev,
+      [testName]: (prev[testName] || []).map(l =>
+        l.inventoryId === inventoryId ? { ...l, quantity: Math.max(1, parseInt(qty) || 1) } : l
+      )
+    }));
+  };
+
+  const removeLinkItem = (testName, inventoryId) => {
+    setTestLinks(prev => {
+      const updated = { ...prev };
+      updated[testName] = (updated[testName] || []).filter(l => l.inventoryId !== inventoryId);
+      if (updated[testName].length === 0) delete updated[testName];
+      return updated;
+    });
+  };
+
+  const saveTestLinks = async () => {
+    setLinkSaving(true);
+    try {
+      await window.api.saveTestInventoryLinks(testLinks);
+      alert('Test linkages saved successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save linkages.');
+    } finally {
+      setLinkSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -146,7 +232,8 @@ const Inventory = () => {
             <tr>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Item Details</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Category</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/4">Stock Level</th>
+              <th className="px-4 py-4 text-xs font-semibold text-slate-500 uppercase">Cost/Unit</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase w-1/5">Stock Level</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Batch / Expiry</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Quick Actions</th>
             </tr>
@@ -167,6 +254,9 @@ const Inventory = () => {
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                       {item.category || 'General'}
                     </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className="text-sm font-semibold text-slate-800">₹{(item.cost_per_unit || 0).toFixed(2)}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-between text-xs mb-1">
@@ -251,6 +341,143 @@ const Inventory = () => {
         {filteredItems.length === 0 && (
           <div className="p-8 text-center text-slate-500">
             No inventory items found.
+          </div>
+        )}
+      </div>
+
+      {/* --- Feature 5: Test-Inventory Linkages Section --- */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+        <button
+          onClick={() => setShowLinkages(!showLinkages)}
+          className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-violet-100 rounded-lg flex items-center justify-center">
+              <Link2 className="text-violet-600" size={20} />
+            </div>
+            <div className="text-left">
+              <h3 className="font-bold text-slate-800">Test-Inventory Linkages</h3>
+              <p className="text-xs text-slate-500">Configure which inventory items are consumed when a test is booked</p>
+            </div>
+          </div>
+          {showLinkages ? <ChevronUp className="text-slate-400" size={20} /> : <ChevronDown className="text-slate-400" size={20} />}
+        </button>
+
+        {showLinkages && (
+          <div className="p-5 pt-0 border-t border-slate-100 space-y-5">
+            
+            {/* Add Linkage Controls */}
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <p className="text-sm font-bold text-slate-700 mb-3">Add / Edit Test Linkage</p>
+              <div className="flex gap-3 items-end flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Select Test</label>
+                  <select
+                    className="w-full p-2 border border-slate-200 rounded-lg bg-white text-sm outline-none focus:border-blue-500"
+                    value={selectedTest}
+                    onChange={(e) => setSelectedTest(e.target.value)}
+                  >
+                    <option value="">-- Choose a Test --</option>
+                    {availableTests.map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {selectedTest && (
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Add Inventory Item</label>
+                    <select
+                      className="w-full p-2 border border-slate-200 rounded-lg bg-white text-sm outline-none focus:border-blue-500"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          addItemToTest(selectedTest, e.target.value);
+                          e.target.value = '';
+                        }
+                      }}
+                    >
+                      <option value="">-- Add Item --</option>
+                      {items.map(inv => (
+                        <option key={inv.id} value={inv.id}>{inv.item_name} ({inv.current_stock} {inv.unit})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Items for Selected Test */}
+              {selectedTest && testLinks[selectedTest] && testLinks[selectedTest].length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-bold text-slate-500 uppercase">Items linked to: {selectedTest}</p>
+                  {testLinks[selectedTest].map(link => (
+                    <div key={link.inventoryId} className="flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                      <span className="flex-1 text-sm text-slate-700 font-medium">{link.itemName}</span>
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs text-slate-500">Qty:</label>
+                        <input
+                          type="number"
+                          className="w-16 px-2 py-1 border border-slate-200 rounded text-sm text-center outline-none focus:border-blue-500"
+                          value={link.quantity}
+                          min={1}
+                          onChange={(e) => updateLinkQuantity(selectedTest, link.inventoryId, e.target.value)}
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeLinkItem(selectedTest, link.inventoryId)}
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="Remove"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedTest && (!testLinks[selectedTest] || testLinks[selectedTest].length === 0) && (
+                <p className="mt-3 text-xs text-slate-400 italic">No items linked to this test yet. Use the dropdown above to add items.</p>
+              )}
+            </div>
+
+            {/* Summary of All Linkages */}
+            {Object.keys(testLinks).length > 0 && (
+              <div>
+                <p className="text-sm font-bold text-slate-700 mb-2">All Configured Linkages</p>
+                <div className="space-y-2">
+                  {Object.entries(testLinks).map(([testName, linkedItems]) => (
+                    <div key={testName} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-800">{testName}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {linkedItems.map(li => (
+                            <span key={li.inventoryId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-medium">
+                              {li.itemName} ×{li.quantity}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedTest(testName)}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Save Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={saveTestLinks}
+                disabled={linkSaving}
+                className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-60"
+              >
+                <Save size={16} />
+                {linkSaving ? 'Saving...' : 'Save Linkages'}
+              </button>
+            </div>
           </div>
         )}
       </div>

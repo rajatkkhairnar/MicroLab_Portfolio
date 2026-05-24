@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('api', {
   updateInventory: (item) => ipcRenderer.invoke('update-inventory', item),
   deleteInventory: (id) => ipcRenderer.invoke('delete-inventory', id),
 
+  // ─── 5b. Test-Inventory Linkages ────────────────────────────────────
+  getTestInventoryLinks: () => ipcRenderer.invoke('get-test-inventory-links'),
+  saveTestInventoryLinks: (data) => ipcRenderer.invoke('save-test-inventory-links', data),
+
   // ─── 6. Financials & Invoicing ─────────────────────────────────────
   createInvoice: (invoiceData) => ipcRenderer.invoke('create-invoice', invoiceData),
   getFinancialLedger: (filter) => ipcRenderer.invoke('get-financial-ledger', filter),

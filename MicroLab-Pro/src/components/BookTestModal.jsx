@@ -30,6 +30,7 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [selectedTests, setSelectedTests] = useState([]);
   const [payment, setPayment] = useState({ paid: 0, mode: 'Cash' });
+  const [customPaymentMode, setCustomPaymentMode] = useState('');
 
   // New Patient Form State
   const [newPatient, setNewPatient] = useState({
@@ -38,7 +39,8 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
     gender: 'Male',
     phone: '',
     uhid: `P-${Math.floor(Math.random() * 100000)}`,
-    address: ''
+    address: '',
+    remarks: ''
   });
 
   // --- Load Data ---
@@ -115,12 +117,13 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
       }
 
       // 2. Create Invoice
+      const finalMode = payment.mode === 'Any Other' ? (customPaymentMode || 'Other') : payment.mode;
       const invoiceData = {
         patientId: finalPatientId,
         doctorId: selectedDoctorId || null,
         total: totalAmount,
         paid: parseFloat(payment.paid),
-        mode: payment.mode,
+        mode: finalMode,
         status: dueAmount <= 0 ? 'Paid' : 'Due',
         tests: selectedTests.map(t => t.name)
       };
@@ -134,8 +137,9 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
         setStep(1);
         setSelectedTests([]);
         setPayment({ paid: 0, mode: 'Cash' });
+        setCustomPaymentMode('');
         setPatientMode('existing');
-        setNewPatient({ name: '', age: '', gender: 'Male', phone: '', uhid: '', address: '' });
+        setNewPatient({ name: '', age: '', gender: 'Male', phone: '', uhid: '', address: '', remarks: '' });
       } else {
         alert("Error creating order: " + result.error);
       }
@@ -231,6 +235,10 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
                         <label className="block text-xs font-bold text-slate-500 uppercase">Delivery Address</label>
                         <textarea name="address" value={newPatient.address} onChange={handleNewPatientChange} className="w-full p-2 border rounded bg-white" placeholder="Enter delivery address" rows="2"></textarea>
                       </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase">Special Remarks (Any Other)</label>
+                        <textarea name="remarks" value={newPatient.remarks} onChange={handleNewPatientChange} className="w-full p-2 border rounded bg-white" placeholder="e.g. PMJAY card holder, Staff relative, etc." rows="2"></textarea>
+                      </div>
                     </div>
                   )}
 
@@ -311,8 +319,8 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Payment Mode</label>
-                    <div className="flex gap-3">
-                      {['Cash', 'UPI', 'Card'].map(mode => (
+                    <div className="flex gap-3 flex-wrap">
+                      {['Cash', 'UPI', 'Card', 'Any Other'].map(mode => (
                         <button
                           key={mode}
                           onClick={() => setPayment({ ...payment, mode })}
@@ -326,6 +334,17 @@ const BookTestModal = ({ isOpen, onClose, onSuccess }) => {
                         </button>
                       ))}
                     </div>
+                    {payment.mode === 'Any Other' && (
+                      <div className="mt-3">
+                        <input
+                          type="text"
+                          placeholder="Enter payment method (e.g. PMJAY, Ayushman Card)"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm"
+                          value={customPaymentMode}
+                          onChange={(e) => setCustomPaymentMode(e.target.value)}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

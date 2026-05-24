@@ -20,7 +20,8 @@ const AddPatientModal = ({ isOpen, onClose, onSuccess }) => {
     phone: '',
     uhid: `P-${Math.floor(Math.random() * 100000)}`, // Auto-generate random ID
     address: '',
-    is_vip: false
+    is_vip: false,
+    remarks: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +87,7 @@ const AddPatientModal = ({ isOpen, onClose, onSuccess }) => {
         setFormData({
           name: '', age: '', gender: 'Male', phone: '', 
           uhid: `P-${Math.floor(Math.random() * 100000)}`, 
-          address: '', is_vip: false
+          address: '', is_vip: false, remarks: ''
         });
       } else {
         throw new Error(result.error || "Failed to save patient");
@@ -217,6 +218,19 @@ const AddPatientModal = ({ isOpen, onClose, onSuccess }) => {
               <label htmlFor="is_vip" className="text-sm text-slate-700 cursor-pointer select-none">
                 Mark as VIP Patient (Priority Handling)
               </label>
+            </div>
+
+            {/* Special Remarks (Any Other) */}
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Special Remarks (Any Other)</label>
+              <textarea 
+                name="remarks"
+                value={formData.remarks}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                placeholder="e.g. PMJAY card holder, Staff relative, Government scheme, etc."
+                rows="2"
+              ></textarea>
             </div>
           </div>
 

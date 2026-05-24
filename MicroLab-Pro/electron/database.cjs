@@ -119,6 +119,24 @@ function initDatabase() {
   `).run();
 
   seedData();
+  runMigrations();
+}
+
+/**
+ * runMigrations — Safely adds new columns to existing tables.
+ * Each ALTER TABLE is wrapped in try/catch so it won't fail
+ * if the column already exists (idempotent).
+ */
+function runMigrations() {
+  // Feature 1: Add remarks column to patients
+  try {
+    db.prepare('ALTER TABLE patients ADD COLUMN remarks TEXT').run();
+  } catch (e) { /* Column already exists */ }
+
+  // Feature 4: Add cost_per_unit column to inventory
+  try {
+    db.prepare('ALTER TABLE inventory ADD COLUMN cost_per_unit REAL DEFAULT 0').run();
+  } catch (e) { /* Column already exists */ }
 }
 
 // Seed Initial Data (Owner Account)

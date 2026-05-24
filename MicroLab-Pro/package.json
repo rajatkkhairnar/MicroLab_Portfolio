@@ -1,7 +1,7 @@
 {
   "name": "microlab-pro",
   "productName": "MicroLab-Pro",
-  "version": "3.1.2",
+  "version": "3.2.0",
   "type": "module",
   "description": "Offline-first Laboratory Information Management System",
   "main": "electron/main.cjs",

@@ -123,6 +123,19 @@ const EditPatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
             />
             {fieldErrors.phone && <p className="text-red-500 text-xs mt-1 font-normal">{fieldErrors.phone}</p>}
           </div>
+
+          {/* Special Remarks (Any Other) */}
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Special Remarks (Any Other)</label>
+            <textarea 
+              name="remarks"
+              value={formData.remarks || ''}
+              onChange={handleChange}
+              className="w-full p-2 border rounded outline-none focus:border-blue-500 transition-all"
+              placeholder="e.g. PMJAY card holder, Staff relative, Government scheme, etc."
+              rows="2"
+            ></textarea>
+          </div>
           
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="flex-1 py-2 border rounded hover:bg-slate-50">Cancel</button>

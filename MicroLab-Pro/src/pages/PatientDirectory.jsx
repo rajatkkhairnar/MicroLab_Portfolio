@@ -12,6 +12,7 @@ import {
 import AddPatientModal from '../components/AddPatientModal';
 import EditPatientModal from '../components/EditPatientModal';
 import DuePaymentModal from '../components/DuePaymentModal';
+import { useUser } from '../context/UserContext';
 
 const PatientDirectory = () => {
   const [patients, setPatients] = useState([]);
@@ -25,6 +26,7 @@ const PatientDirectory = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [paymentFilter, setPaymentFilter] = useState('All');
   const [deleteId, setDeleteId] = useState(null);
+  const { user } = useUser();
 
   useEffect(() => {
     loadPatients();
@@ -191,7 +193,9 @@ const PatientDirectory = () => {
                       </button>
                     )}
                     <button onClick={() => handleEdit(patient)} className="p-1 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Edit size={16} /></button>
-                    <button onClick={() => setDeleteId(patient.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={16} /></button>
+                    {user?.role === 'owner' && (
+                      <button onClick={() => setDeleteId(patient.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={16} /></button>
+                    )}
                   </td>
                 </tr>
               ))

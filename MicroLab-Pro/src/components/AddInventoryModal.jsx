@@ -20,7 +20,8 @@ const AddInventoryModal = ({ isOpen, onClose, onSuccess }) => {
     minLevel: 10,
     unit: 'Units',
     batch: '',
-    expiry: ''
+    expiry: '',
+    costPerUnit: 0
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,7 +58,7 @@ const AddInventoryModal = ({ isOpen, onClose, onSuccess }) => {
       if (res.success) {
         onSuccess();
         onClose();
-        setFormData({ name: '', sku: '', category: 'Reagents', stock: 0, minLevel: 10, unit: 'Units', batch: '', expiry: '' });
+        setFormData({ name: '', sku: '', category: 'Reagents', stock: 0, minLevel: 10, unit: 'Units', batch: '', expiry: '', costPerUnit: 0 });
       } else {
         alert("Error: " + res.error);
       }
@@ -118,6 +119,11 @@ const AddInventoryModal = ({ isOpen, onClose, onSuccess }) => {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Initial Stock</label>
               <input type="number" name="stock" onChange={handleChange} value={formData.stock} className="w-full px-3 py-2 border rounded-lg outline-none" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Cost per Unit (₹)</label>
+              <input type="number" name="costPerUnit" onChange={handleChange} value={formData.costPerUnit} className="w-full px-3 py-2 border rounded-lg outline-none" step="0.01" min="0" placeholder="0.00" />
             </div>
 
             <div>

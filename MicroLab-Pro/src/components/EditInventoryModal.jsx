@@ -16,7 +16,8 @@ const EditInventoryModal = ({ isOpen, onClose, item, onSuccess }) => {
     name: '',
     sku: '',
     category: '',
-    minLevel: ''
+    minLevel: '',
+    costPerUnit: 0
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -29,7 +30,8 @@ const EditInventoryModal = ({ isOpen, onClose, item, onSuccess }) => {
         name: item.item_name,
         sku: item.sku,
         category: item.category,
-        minLevel: item.min_reorder_level
+        minLevel: item.min_reorder_level,
+        costPerUnit: item.cost_per_unit || 0
       });
     }
   }, [item]);
@@ -118,6 +120,11 @@ const EditInventoryModal = ({ isOpen, onClose, item, onSuccess }) => {
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Min Reorder Level</label>
             <input type="number" name="minLevel" value={formData.minLevel} onChange={handleChange} className="w-full p-2 border rounded focus:border-blue-500 outline-none" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1">Cost per Unit (₹)</label>
+            <input type="number" name="costPerUnit" value={formData.costPerUnit} onChange={handleChange} className="w-full p-2 border rounded focus:border-blue-500 outline-none" step="0.01" min="0" placeholder="0.00" />
           </div>
 
           <div className="pt-4 flex gap-3">
