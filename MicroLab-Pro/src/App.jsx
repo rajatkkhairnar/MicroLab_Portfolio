@@ -19,6 +19,7 @@ import LabOperations from './pages/LabOperations';
 import Inventory from './pages/Inventory';
 import Financials from './pages/Financials';
 import Settings from './pages/Settings';
+import TestDirectory from './pages/TestDirectory';
 import Login from './pages/Login';
 
 /**
@@ -87,6 +88,7 @@ const MainRoutes = () => {
             <Route path="/patients" element={<ProtectedRoute><PatientDirectory /></ProtectedRoute>} />
             <Route path="/operations" element={<ProtectedRoute><LabOperations /></ProtectedRoute>} />
             <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+            <Route path="/test-directory" element={<ProtectedRoute><TestDirectory /></ProtectedRoute>} />
             
             {/* Owner-only restricted routes */}
             <Route path="/financials" element={

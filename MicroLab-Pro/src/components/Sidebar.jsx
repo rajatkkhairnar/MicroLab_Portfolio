@@ -10,7 +10,7 @@ import { NavLink } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { 
   LayoutDashboard, FlaskConical, Users, 
-  PackageSearch, IndianRupee, Settings, LogOut, Microscope 
+  PackageSearch, IndianRupee, Settings, LogOut, Microscope, ClipboardList 
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -22,6 +22,7 @@ const Sidebar = () => {
     { name: 'Lab Operations', path: '/operations', icon: FlaskConical, role: 'all' },
     { name: 'Patient Directory', path: '/patients', icon: Users, role: 'all' },
     { name: 'Inventory', path: '/inventory', icon: PackageSearch, role: 'all' },
+    { name: 'Test Directory', path: '/test-directory', icon: ClipboardList, role: 'all' },
     // Restricted Items
     { name: 'Financials', path: '/financials', icon: IndianRupee, role: 'owner' },
     { name: 'Settings', path: '/settings', icon: Settings, role: 'owner' },

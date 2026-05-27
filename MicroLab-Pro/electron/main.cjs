@@ -459,6 +459,76 @@ ipcMain.handle('get-doctor-commissions', (_, { period }) => {
   return rows;
 });
 
+// 7.0c Doctor Referral Detail — patients referred by a specific doctor
+ipcMain.handle('get-doctor-patients', (_, { doctorId, period }) => {
+  let dateCondition = '1=1';
+  if (period === 'today') dateCondition = `date(invoices.created_at) = date('now', 'localtime')`;
+  else if (period === 'yesterday') dateCondition = `date(invoices.created_at) = date('now', 'localtime', '-1 day')`;
+  else if (period === 'week') dateCondition = `invoices.created_at >= date('now', 'localtime', 'weekday 0', '-6 days')`;
+  else if (period === 'month') dateCondition = `strftime('%Y-%m', invoices.created_at) = strftime('%Y-%m', 'now', 'localtime')`;
+  else if (period === 'year') dateCondition = `strftime('%Y', invoices.created_at) = strftime('%Y', 'now', 'localtime')`;
+
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        invoices.id as invoice_id,
+        invoices.created_at,
+        patients.name as patient_name,
+        patients.phone as patient_phone,
+        patients.age as patient_age,
+        patients.gender as patient_gender,
+        GROUP_CONCAT(lab_tests.test_name, ', ') as tests,
+        invoices.payment_mode,
+        invoices.total_amount,
+        invoices.paid_amount,
+        invoices.status as payment_status
+      FROM invoices
+      JOIN patients ON invoices.patient_id = patients.id
+      JOIN lab_tests ON lab_tests.invoice_id = invoices.id
+      WHERE invoices.doctor_id = ? AND ${dateCondition}
+      GROUP BY invoices.id
+      ORDER BY invoices.created_at DESC
+    `).all(doctorId);
+
+    return { success: true, data: rows };
+  } catch (err) {
+    return { success: false, error: err.message, data: [] };
+  }
+});
+
+// 7.0d Test Directory — all tests with patient details, cost, and payment info
+ipcMain.handle('get-test-directory', (_, { filter, search }) => {
+  let sql = `
+    SELECT 
+      invoices.id as invoice_id,
+      invoices.created_at,
+      patients.name as patient_name,
+      patients.phone as patient_phone,
+      GROUP_CONCAT(lab_tests.test_name, ', ') as tests,
+      invoices.total_amount,
+      invoices.paid_amount,
+      invoices.payment_mode,
+      invoices.status as payment_status
+    FROM invoices
+    JOIN patients ON invoices.patient_id = patients.id
+    JOIN lab_tests ON lab_tests.invoice_id = invoices.id
+  `;
+
+  const conditions = [];
+  if (filter === 'today') conditions.push(`date(invoices.created_at) = date('now', 'localtime')`);
+  if (filter === 'yesterday') conditions.push(`date(invoices.created_at) = date('now', 'localtime', '-1 day')`);
+  if (filter === 'week') conditions.push(`invoices.created_at >= date('now', 'localtime', 'weekday 0', '-6 days')`);
+  if (filter === 'month') conditions.push(`strftime('%Y-%m', invoices.created_at) = strftime('%Y-%m', 'now', 'localtime')`);
+  if (filter === 'year') conditions.push(`strftime('%Y', invoices.created_at) = strftime('%Y', 'now', 'localtime')`);
+  if (search) conditions.push(`(patients.name LIKE '%${search}%' OR lab_tests.test_name LIKE '%${search}%')`);
+
+  if (conditions.length > 0) sql += ` WHERE ` + conditions.join(' AND ');
+
+  sql += ` GROUP BY invoices.id ORDER BY invoices.created_at DESC`;
+
+  return db.prepare(sql).all();
+});
+
 // Get all Active Orders (Joined with Patient Name & Test List)
 ipcMain.handle('get-lab-orders', (_, { filter, search }) => {
   let sql = `
@@ -544,6 +614,72 @@ ipcMain.handle('update-test-result', (_, { testId, result, status }) => {
     WHERE id = ?
   `).run(JSON.stringify(result), status, testId);
   return { success: true };
+});
+
+// Helper: Look up test price from settings or fallback defaults
+function getTestPrice(testName) {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'testPricing'").get();
+    if (row && row.value) {
+      const tests = JSON.parse(row.value);
+      const found = tests.find(t => t.name === testName);
+      if (found) return found.price || 0;
+    }
+  } catch (e) { /* fallback below */ }
+  // Fallback: hardcoded defaults (matches defaultTests.js)
+  const defaults = {
+    'Complete Blood Count (CBC)': 350, 'Lipid Profile': 600,
+    'Liver Function Test (LFT)': 450, 'Kidney Function Test (KFT)': 500,
+    'Blood Glucose (Fasting)': 100, 'Blood Glucose (PP)': 100, 'HbA1c': 400,
+    'Urine Routine': 150, 'Vitamin D Total': 1200, 'Blood Group (ABO & Rh)': 150,
+    'Dengue Test': 800, 'HIV I & II (ELISA)': 500, 'AEC Test': 150,
+    'BT & CT Test': 150, 'CRP Test': 300, 'ESR Test': 100,
+    'Malaria Parasite': 150, 'RBS Test': 100, 'Thyroid Profile (T3, T4, TSH)': 500,
+    'Widal Test': 200
+  };
+  return defaults[testName] || 0;
+}
+
+// Add a test to an existing invoice (+ update price)
+ipcMain.handle('add-test-to-invoice', (_, { invoiceId, testName }) => {
+  try {
+    const existing = db.prepare('SELECT id FROM lab_tests WHERE invoice_id = ? AND test_name = ?').get(invoiceId, testName);
+    if (existing) return { success: false, error: 'Test already exists on this order.' };
+
+    const price = getTestPrice(testName);
+
+    const txn = db.transaction(() => {
+      db.prepare('INSERT INTO lab_tests (invoice_id, test_name) VALUES (?, ?)').run(invoiceId, testName);
+      db.prepare('UPDATE invoices SET total_amount = total_amount + ? WHERE id = ?').run(price, invoiceId);
+    });
+    txn();
+
+    const updated = db.prepare('SELECT total_amount, paid_amount FROM invoices WHERE id = ?').get(invoiceId);
+    return { success: true, newTotal: updated.total_amount, paidAmount: updated.paid_amount };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Remove a test from an existing invoice (+ update price)
+ipcMain.handle('remove-test-from-invoice', (_, { invoiceId, testName }) => {
+  try {
+    const count = db.prepare('SELECT COUNT(*) as cnt FROM lab_tests WHERE invoice_id = ?').get(invoiceId);
+    if (count.cnt <= 1) return { success: false, error: 'Cannot remove the last test from an order.' };
+
+    const price = getTestPrice(testName);
+
+    const txn = db.transaction(() => {
+      db.prepare('DELETE FROM lab_tests WHERE invoice_id = ? AND test_name = ?').run(invoiceId, testName);
+      db.prepare('UPDATE invoices SET total_amount = MAX(total_amount - ?, 0) WHERE id = ?').run(price, invoiceId);
+    });
+    txn();
+
+    const updated = db.prepare('SELECT total_amount, paid_amount FROM invoices WHERE id = ?').get(invoiceId);
+    return { success: true, newTotal: updated.total_amount, paidAmount: updated.paid_amount };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 // Fetch Doctors (for the booking dropdown)

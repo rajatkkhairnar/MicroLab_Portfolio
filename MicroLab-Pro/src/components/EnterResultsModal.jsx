@@ -3,14 +3,16 @@
  * 
  * Split-panel UI for entering observed test values:
  * - Left sidebar: list of tests in the order (e.g. CBC, Lipid Profile)
+ *   with edit mode to add/remove tests
  * - Right panel: parameter grid with name, input, unit, and reference range
  * 
  * Loads parameter definitions from testCatalog via getEffectiveParams()
  * (respecting any custom overrides from Settings). Supports Save and Save+Print.
  */
 import React, { useState, useEffect } from 'react';
-import { X, Save, Printer, FileCheck, AlertCircle, FileText } from 'lucide-react';
+import { X, Save, Printer, FileCheck, AlertCircle, FileText, Edit3, Plus, Trash2, Check } from 'lucide-react';
 import { getEffectiveParams } from '../utils/getEffectiveParams';
+import { DEFAULT_TESTS } from '../utils/defaultTests';
 
 const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
   if (!isOpen || !order) return null;
@@ -20,9 +22,13 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
   const [saving, setSaving] = useState(false);
   const [testParamSettings, setTestParamSettings] = useState({});
 
-  // Parse the test list from the order string "CBC, Lipid Profile"
-  const testList = order.tests.split(', ');
-  const currentTestName = testList[activeTestIndex];
+  // Edit mode state for adding/removing tests
+  const [editMode, setEditMode] = useState(false);
+  const [testList, setTestList] = useState([]);
+  const [availableTests, setAvailableTests] = useState([]);
+  const [addTestDropdownValue, setAddTestDropdownValue] = useState('');
+
+  const currentTestName = testList[activeTestIndex] || testList[0] || '';
   const currentParams = getEffectiveParams(currentTestName, testParamSettings);
 
   // Load parameter settings from lab profile
@@ -35,6 +41,14 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
         if (profileObj.testParamSettings) {
           setTestParamSettings(JSON.parse(profileObj.testParamSettings));
         }
+
+        // Load available test list for dropdown
+        let tests = DEFAULT_TESTS.map(t => ({...t, enabled: true}));
+        if (profileObj.testPricing) {
+          const parsed = JSON.parse(profileObj.testPricing);
+          tests = parsed.filter(t => t.enabled !== false);
+        }
+        setAvailableTests(tests);
       } catch (err) {
         console.error('Failed to load param settings:', err);
       }
@@ -42,9 +56,13 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
     loadParamSettings();
   }, []);
 
-  // Initialize results state
+  // Initialize test list and results state
   useEffect(() => {
     setActiveTestIndex(0);
+    setEditMode(false);
+    const parsedTests = order.tests.split(', ').filter(t => t.trim());
+    setTestList(parsedTests);
+
     const fetchSavedResults = async () => {
       if (order && order.id) {
         try {
@@ -75,30 +93,66 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
     }));
   };
 
+  // --- Add Test ---
+  const handleAddTest = async (testName) => {
+    if (!testName) return;
+    try {
+      const result = await window.api.addTestToInvoice({ invoiceId: order.id, testName });
+      if (result.success) {
+        setTestList(prev => [...prev, testName]);
+        setAddTestDropdownValue('');
+      } else {
+        alert(result.error || 'Failed to add test.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- Remove Test ---
+  const handleRemoveTest = async (testName) => {
+    if (testList.length <= 1) {
+      alert('Cannot remove the last test from an order.');
+      return;
+    }
+    const confirmed = confirm(`Remove "${testName}" from this order?`);
+    if (!confirmed) return;
+
+    try {
+      const result = await window.api.removeTestFromInvoice({ invoiceId: order.id, testName });
+      if (result.success) {
+        setTestList(prev => prev.filter(t => t !== testName));
+        // Remove results for this test
+        setResults(prev => {
+          const updated = { ...prev };
+          delete updated[testName];
+          return updated;
+        });
+        // Adjust active index if needed
+        if (activeTestIndex >= testList.length - 1) {
+          setActiveTestIndex(Math.max(0, testList.length - 2));
+        }
+      } else {
+        alert(result.error || 'Failed to remove test.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      // 1. We need to find the specific 'lab_tests' ID for this test.
-      // Since our current simplified backend 'get-lab-orders' just gives us a list of names,
-      // we will do a "Save All" approach. In a real app, we'd iterate properly.
-      
-      // We will assume the backend can handle an update by InvoiceID + TestName
-      // OR we just use the API we built: updateTestResult(testId, data)
-      // NOTE: Our current backend requires 'testId'. 
-      // For this demo, let's update the backend to allow saving by Invoice ID for simplicity?
-      // Actually, let's just mock the success for the UI flow, 
-      // as hooking up the exact ID requires a more complex 'get-lab-orders' query.
-      
-      // Let's assume we save successfully locally for PDF generation.
-      
       onSuccess(results); // Pass data back to parent
-      // onClose(); // Don't close, user might want to print
     } catch (err) {
       console.error(err);
     } finally {
       setSaving(false);
     }
   };
+
+  // Tests available to add (not already in the order)
+  const testsToAdd = availableTests.filter(t => !testList.includes(t.name));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
@@ -121,20 +175,72 @@ const EnterResultsModal = ({ isOpen, onClose, order, onSuccess }) => {
         <div className="flex flex-1 overflow-hidden">
           
           {/* Sidebar: Test List */}
-          <div className="w-64 bg-slate-50 border-r border-slate-100 p-4 overflow-y-auto space-y-2">
-            <h3 className="text-xs font-bold text-slate-400 uppercase mb-4">Tests Requested</h3>
-            {testList.map((test, idx) => (
+          <div className="w-64 bg-slate-50 border-r border-slate-100 p-4 overflow-y-auto flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase">Tests Requested</h3>
               <button
-                key={idx}
-                onClick={() => setActiveTestIndex(idx)}
-                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex justify-between items-center
-                  ${activeTestIndex === idx ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200'}
-                `}
+                onClick={() => setEditMode(!editMode)}
+                className={`p-1.5 rounded-md transition-colors ${editMode
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200'}`}
+                title={editMode ? "Done editing" : "Edit tests"}
               >
-                {test}
-                {results[test] && <FileCheck size={14} className={activeTestIndex === idx ? 'text-blue-200' : 'text-emerald-500'} />}
+                {editMode ? <Check size={14} /> : <Edit3 size={14} />}
               </button>
-            ))}
+            </div>
+
+            <div className="space-y-2 flex-1">
+              {testList.map((test, idx) => (
+                <div key={idx} className="flex items-center gap-1">
+                  <button
+                    onClick={() => { if (!editMode) setActiveTestIndex(idx); }}
+                    className={`flex-1 text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex justify-between items-center
+                      ${!editMode && activeTestIndex === idx ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200'}
+                      ${editMode ? 'cursor-default' : 'cursor-pointer'}
+                    `}
+                  >
+                    <span className="truncate">{test}</span>
+                    {!editMode && results[test] && <FileCheck size={14} className={activeTestIndex === idx ? 'text-blue-200' : 'text-emerald-500'} />}
+                  </button>
+                  {editMode && (
+                    <button
+                      onClick={() => handleRemoveTest(test)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                      title="Remove test"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add Test Dropdown (visible in edit mode) */}
+            {editMode && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                <p className="text-xs font-bold text-slate-400 uppercase mb-2">Add Test</p>
+                <div className="flex gap-1.5">
+                  <select
+                    className="flex-1 p-2 text-xs border border-slate-200 rounded-lg bg-white outline-none focus:border-blue-500"
+                    value={addTestDropdownValue}
+                    onChange={(e) => setAddTestDropdownValue(e.target.value)}
+                  >
+                    <option value="">-- Select Test --</option>
+                    {testsToAdd.map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => handleAddTest(addTestDropdownValue)}
+                    disabled={!addTestDropdownValue}
+                    className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    title="Add test"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Main Area: Input Form */}

@@ -9,7 +9,7 @@
  * clear breakdown of patients, revenue, and commission due.
  */
 import React, { useState, useEffect } from 'react';
-import { Wallet, CreditCard, TrendingUp, Download, Stethoscope, Users, Building2 } from 'lucide-react';
+import { Wallet, CreditCard, TrendingUp, Download, Stethoscope, Users, Building2, X, Loader2, FileDown } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const Financials = () => {
@@ -21,6 +21,12 @@ const Financials = () => {
   const [commissionPeriod, setCommissionPeriod] = useState('all');
   const [commissions, setCommissions] = useState([]);
   const [commissionLoading, setCommissionLoading] = useState(false);
+
+  // --- Doctor Referral Detail Modal ---
+  const [selectedDoctor, setSelectedDoctor] = useState(null); // { doctor_id, doctor_name, ... }
+  const [doctorPatients, setDoctorPatients] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailPayFilter, setDetailPayFilter] = useState('All'); // 'All' | 'Paid' | 'Due'
 
   useEffect(() => { loadFinancials(); }, [filter]);
   useEffect(() => { loadCommissions(); }, [commissionPeriod]);
@@ -54,6 +60,61 @@ const Financials = () => {
     await window.api.settleDue({ invoiceId, amount, mode: 'Cash' });
     loadFinancials();
   };
+
+  // --- Doctor Referral Detail ---
+  const handleDoctorClick = async (doc) => {
+    setSelectedDoctor(doc);
+    setDetailLoading(true);
+    setDoctorPatients([]);
+    setDetailPayFilter('All');
+    try {
+      const result = await window.api.getDoctorPatients({ doctorId: doc.doctor_id, period: commissionPeriod });
+      if (result.success) {
+        setDoctorPatients(result.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDoctorDetail = () => {
+    setSelectedDoctor(null);
+    setDoctorPatients([]);
+    setDetailPayFilter('All');
+  };
+
+  const downloadDoctorCSV = () => {
+    const exportList = filteredDoctorPatients;
+    if (exportList.length === 0) return;
+    const headers = ['Date', 'Patient Name', 'Phone', 'Age/Gender', 'Tests', 'Payment Mode', 'Total Amount', 'Paid Amount', 'Status'];
+    const rows = exportList.map(p => [
+      new Date(p.created_at).toLocaleDateString(),
+      p.patient_name,
+      p.patient_phone || '',
+      `${p.patient_age || ''} / ${p.patient_gender || ''}`,
+      `"${(p.tests || '').replace(/"/g, '""')}"`,
+      p.payment_mode,
+      p.total_amount,
+      p.paid_amount,
+      p.payment_status
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Dr_${selectedDoctor.doctor_name}_Referrals_${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- Filtered doctor patients for the detail modal ---
+  const filteredDoctorPatients = doctorPatients.filter(p => {
+    if (detailPayFilter === 'All') return true;
+    return detailPayFilter === 'Paid' ? p.payment_status === 'Paid' : p.payment_status !== 'Paid';
+  });
 
   const chartData = [
     { name: 'Cash', value: data.stats.byMode?.Cash || 0, color: '#10B981' },
@@ -165,7 +226,11 @@ const Financials = () => {
               {/* Per-doctor cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
                 {commissions.map((doc) => (
-                  <div key={doc.doctor_id} className="border border-slate-200 rounded-xl p-4 hover:border-violet-300 hover:shadow-md transition-all">
+                  <div 
+                    key={doc.doctor_id} 
+                    className="border border-slate-200 rounded-xl p-4 hover:border-violet-300 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => handleDoctorClick(doc)}
+                  >
                     {/* Doctor name + clinic */}
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0">
@@ -294,6 +359,127 @@ const Financials = () => {
           </div>
         </div>
       </div>
+
+      {/* ═══ Doctor Referral Detail Modal ═══ */}
+      {selectedDoctor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-gradient-to-r from-violet-50 to-purple-50">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center">
+                  <span className="text-violet-700 font-bold text-lg">{selectedDoctor.doctor_name.charAt(0).toUpperCase()}</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800">Dr. {selectedDoctor.doctor_name}</h2>
+                  <p className="text-sm text-slate-500">
+                    {selectedDoctor.clinic_name && <span>{selectedDoctor.clinic_name} · </span>}
+                    Referred Patients — {periodLabels[commissionPeriod]}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={detailPayFilter}
+                  onChange={(e) => setDetailPayFilter(e.target.value)}
+                  className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white outline-none focus:border-violet-400"
+                >
+                  <option value="All">All Patients</option>
+                  <option value="Paid">Paid Only</option>
+                  <option value="Due">Unpaid Only</option>
+                </select>
+                <button
+                  onClick={downloadDoctorCSV}
+                  disabled={filteredDoctorPatients.length === 0}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <FileDown size={16} /> Download CSV
+                </button>
+                <button onClick={closeDoctorDetail} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto flex-1">
+              {detailLoading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="animate-spin text-violet-500" size={28} />
+                </div>
+              ) : filteredDoctorPatients.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <Users className="mx-auto mb-3 opacity-30" size={36} />
+                  <p className="text-sm">No patients referred by this doctor for the selected period.</p>
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Patient Name</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Tests</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Payment Mode</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredDoctorPatients.map((p) => (
+                      <tr key={p.invoice_id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-3">
+                          <span className="text-sm text-slate-700">{new Date(p.created_at).toLocaleDateString()}</span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <p className="text-sm font-medium text-slate-800">{p.patient_name}</p>
+                          {p.patient_phone && <p className="text-xs text-slate-400">{p.patient_phone}</p>}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {(p.tests || '').split(', ').map((test, i) => (
+                              <span key={i} className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                                {test}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="px-2 py-0.5 border rounded text-xs text-slate-600 bg-slate-50">{p.payment_mode}</span>
+                        </td>
+                        <td className="px-5 py-3 font-mono text-sm">
+                          <span className="text-slate-900 font-bold">₹{p.total_amount}</span>
+                          {p.total_amount > p.paid_amount && (
+                            <span className="block text-xs text-red-500">Due: ₹{p.total_amount - p.paid_amount}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {p.payment_status === 'Paid'
+                            ? <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded">PAID</span>
+                            : <span className="text-xs text-red-500 font-bold bg-red-50 px-2 py-1 rounded">DUE</span>
+                          }
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer — Summary */}
+            {filteredDoctorPatients.length > 0 && (
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-sm">
+                <span className="text-slate-500">Total: <strong className="text-slate-800">{filteredDoctorPatients.length} patients</strong>{detailPayFilter !== 'All' && <span className="text-xs text-slate-400 ml-1">({detailPayFilter})</span>}</span>
+                <span className="text-slate-500">
+                  Revenue: <strong className="text-slate-800">₹{filteredDoctorPatients.reduce((s, p) => s + (p.total_amount || 0), 0).toLocaleString()}</strong>
+                  {' · '}
+                  Collected: <strong className="text-emerald-600">₹{filteredDoctorPatients.reduce((s, p) => s + (p.paid_amount || 0), 0).toLocaleString()}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

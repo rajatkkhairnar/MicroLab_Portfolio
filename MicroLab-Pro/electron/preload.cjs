@@ -51,13 +51,19 @@ contextBridge.exposeInMainWorld('api', {
 
   // ─── 8. Lab Operations ─────────────────────────────────────────────
   getLabOrders: (params) => ipcRenderer.invoke('get-lab-orders', params),
+  getTestDirectory: (params) => ipcRenderer.invoke('get-test-directory', params),
   getLabStats: () => ipcRenderer.invoke('get-lab-stats'),
   getDoctorCommissions: (params) => ipcRenderer.invoke('get-doctor-commissions', params),
+  getDoctorPatients: (params) => ipcRenderer.invoke('get-doctor-patients', params),
   getOrderResults: (orderId) => ipcRenderer.invoke('get-order-results', orderId),
   getDoctors: () => ipcRenderer.invoke('get-doctors'),
   addDoctor: (doc) => ipcRenderer.invoke('add-doctor', doc),
   deleteDoctor: (id) => ipcRenderer.invoke('delete-doctor', id),
   updateDoctor: (doc) => ipcRenderer.invoke('update-doctor', doc),
+
+  // ─── 8b. Test Management ────────────────────────────────────────────
+  addTestToInvoice: (data) => ipcRenderer.invoke('add-test-to-invoice', data),
+  removeTestFromInvoice: (data) => ipcRenderer.invoke('remove-test-from-invoice', data),
   updateTestResult: (data) => ipcRenderer.invoke('update-test-result', data),
   saveTestResults: (data) => ipcRenderer.invoke('save-test-results', data),
   printReport: (htmlContent, patientName) => ipcRenderer.invoke('print-report', { htmlContent, patientName }),
