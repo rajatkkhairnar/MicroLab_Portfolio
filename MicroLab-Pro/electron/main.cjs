@@ -19,6 +19,7 @@ const path = require('path');
 const fs = require('fs');
 const { db, initDatabase } = require('./database.cjs');
 const { autoUpdater } = require('electron-updater');
+const license = require('./license.cjs');
 
 // Initialize DB schema on startup
 initDatabase();
@@ -992,10 +993,141 @@ ipcMain.handle('save-test-inventory-links', (_, linksData) => {
   }
 });
 
-// --- App Lifecycle ---
+// --- 12. License Management ---
 
-app.whenReady().then(() => {
-  createWindow();
+// IPC: Activate a license key (from main app Settings — shouldn't normally be used)
+ipcMain.handle('activate-license', async (_, key) => {
+  return await license.activateLicense(key);
+});
+
+// IPC: Deactivate the current license → restart app to show activation window
+ipcMain.handle('deactivate-license', async () => {
+  const result = await license.deactivateLicense();
+  if (result.success) {
+    // Relaunch the app so it starts fresh with the license check
+    app.relaunch();
+    app.exit(0);
+  }
+  return result;
+});
+
+// IPC: Get current license info
+ipcMain.handle('get-license-info', () => {
+  return license.getLicenseInfo();
+});
+
+// IPC: Open signup page in default browser
+ipcMain.on('open-signup-page', () => {
+  const serverUrl = process.env.LICENSE_SERVER_URL || 'http://localhost:3000';
+  shell.openExternal(`${serverUrl}/signup`);
+});
+
+// IPC: Activate license from the license activation window
+ipcMain.handle('activate-license-from-window', async (_, key) => {
+  const result = await license.activateLicense(key);
+  if (result.success) {
+    // Store license info for the main window
+    global.licenseExpired = false;
+    global.licenseInfo = {
+      plan: result.plan,
+      expiresAt: result.expiresAt,
+      numRoles: result.numRoles,
+    };
+
+    // Small delay for the success message to show, then swap windows
+    setTimeout(() => {
+      // Set flag so the license window's 'closed' event doesn't quit the app
+      isTransitioning = true;
+      
+      // Close the license window
+      if (licenseWindow && !licenseWindow.isDestroyed()) {
+        licenseWindow.close();
+        licenseWindow = null;
+      }
+      // Open the main app window
+      createWindow();
+    }, 1500);
+  }
+  return result;
+});
+
+// ─── License Window ─────────────────────────────────────────────────
+
+let isTransitioning = false; // Flag to prevent quit during window swap
+
+/**
+ * Opens the license activation window.
+ * Shown when the app has no valid license or the license is blocked.
+ * @param {string} reason - Why the license window is being shown
+ */
+function createLicenseWindow(reason) {
+  isTransitioning = false;
+  
+  licenseWindow = new BrowserWindow({
+    width: 520,
+    height: 440,
+    resizable: false,
+    frame: false,
+    center: true,
+    title: 'MicroLab Pro — Activation',
+    webPreferences: {
+      preload: path.join(__dirname, 'licensePreload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  licenseWindow.loadFile(path.join(__dirname, 'licenseWindow.html'));
+
+  // Send the reason to the window after it loads
+  licenseWindow.webContents.on('did-finish-load', () => {
+    if (licenseWindow && !licenseWindow.isDestroyed()) {
+      licenseWindow.webContents.send('set-license-reason', reason);
+    }
+  });
+
+  licenseWindow.on('closed', () => {
+    licenseWindow = null;
+    // Only quit if we're NOT transitioning to the main window
+    if (!isTransitioning && (!mainWindow || mainWindow.isDestroyed())) {
+      app.quit();
+    }
+  });
+}
+
+// ─── App Lifecycle (License-Gated Startup) ──────────────────────────
+
+app.whenReady().then(async () => {
+  // Validate license before showing the main window
+  const licenseStatus = await license.validateLicense();
+
+  if (!licenseStatus.valid) {
+    // License is invalid — show activation window
+    console.log(`License invalid: ${licenseStatus.reason}`);
+    createLicenseWindow(licenseStatus.reason);
+  } else if (licenseStatus.expired) {
+    // License is expired (subscription ended) — open app in soft-lock mode
+    console.log('License expired — opening in soft-lock mode');
+    // Store the expired status so the renderer can read it
+    global.licenseExpired = true;
+    global.licenseInfo = {
+      plan: licenseStatus.plan,
+      expiresAt: licenseStatus.expiresAt,
+      numRoles: licenseStatus.numRoles,
+    };
+    createWindow();
+  } else {
+    // License is valid and active — proceed normally
+    console.log(`License valid — plan: ${licenseStatus.plan}, expires: ${licenseStatus.expiresAt || 'never'}`);
+    global.licenseExpired = false;
+    global.licenseInfo = {
+      plan: licenseStatus.plan,
+      expiresAt: licenseStatus.expiresAt,
+      numRoles: licenseStatus.numRoles,
+    };
+    createWindow();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1004,4 +1136,4 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
-});
+});

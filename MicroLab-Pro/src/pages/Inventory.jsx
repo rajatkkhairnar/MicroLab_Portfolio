@@ -14,8 +14,10 @@ import {
 import AddInventoryModal from '../components/AddInventoryModal';
 import EditInventoryModal from '../components/EditInventoryModal';
 import { DEFAULT_TESTS } from '../utils/defaultTests';
+import { useLicense } from '../context/LicenseContext';
 
 const Inventory = () => {
+  const { licenseExpired } = useLicense();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -218,7 +220,12 @@ const Inventory = () => {
           />
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm" onClick={() => setIsAddOpen(true)}>
+          <button
+            className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => setIsAddOpen(true)}
+            disabled={licenseExpired}
+            title={licenseExpired ? 'License expired — contact vendor to renew' : ''}
+          >
             <Plus size={18} />
             <span>New Item</span>
           </button>
@@ -294,8 +301,9 @@ const Inventory = () => {
                           const qty = parseInt(document.getElementById(`qty-${item.id}`).value) || 1;
                           handleStockUpdate(item.id, qty, 'add');
                         }}
-                        className="p-1.5 text-slate-500 bg-emerald-50 hover:bg-emerald-100 rounded text-emerald-600 transition-colors"
-                        title="Add Stock"
+                        className={`p-1.5 text-slate-500 bg-emerald-50 hover:bg-emerald-100 rounded text-emerald-600 transition-colors ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={licenseExpired ? 'License expired' : 'Add Stock'}
+                        disabled={licenseExpired}
                       >
                         <ArrowUpCircle size={16} />
                       </button>
@@ -305,8 +313,9 @@ const Inventory = () => {
                            const qty = parseInt(document.getElementById(`qty-${item.id}`).value) || 1;
                            handleStockUpdate(item.id, qty, 'consume');
                         }}
-                        className="p-1.5 text-slate-500 bg-red-50 hover:bg-red-100 rounded text-red-600 transition-colors"
-                        title="Consume Stock"
+                        className={`p-1.5 text-slate-500 bg-red-50 hover:bg-red-100 rounded text-red-600 transition-colors ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={licenseExpired ? 'License expired' : 'Consume Stock'}
+                        disabled={licenseExpired}
                       >
                         <ArrowDownCircle size={16} />
                       </button>
@@ -316,8 +325,9 @@ const Inventory = () => {
                       {/* EDIT BUTTON */}
                       <button 
                         onClick={() => handleEdit(item)}
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Edit Item"
+                        className={`p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={licenseExpired ? 'License expired' : 'Edit Item'}
+                        disabled={licenseExpired}
                       >
                         <Edit size={16} />
                       </button>
@@ -325,8 +335,9 @@ const Inventory = () => {
                       {/* DELETE BUTTON */}
                       <button 
                         onClick={() => setDeleteId(item.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="Delete Item"
+                        className={`p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={licenseExpired ? 'License expired' : 'Delete Item'}
+                        disabled={licenseExpired}
                       >
                         <Trash2 size={16} />
                       </button>

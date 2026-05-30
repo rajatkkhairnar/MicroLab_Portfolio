@@ -87,5 +87,15 @@ contextBridge.exposeInMainWorld('api', {
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => func(...args));
     }
-  }
+  },
+
+  // ─── 11. License Management ────────────────────────────────────────
+  /** Activate a license key on this machine */
+  activateLicense: (key) => ipcRenderer.invoke('activate-license', key),
+
+  /** Deactivate the current license (free up slot for another machine) */
+  deactivateLicense: () => ipcRenderer.invoke('deactivate-license'),
+
+  /** Get current license info (key, plan, expiry, expired flag) */
+  getLicenseInfo: () => ipcRenderer.invoke('get-license-info'),
 });

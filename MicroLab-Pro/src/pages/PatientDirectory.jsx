@@ -13,6 +13,7 @@ import AddPatientModal from '../components/AddPatientModal';
 import EditPatientModal from '../components/EditPatientModal';
 import DuePaymentModal from '../components/DuePaymentModal';
 import { useUser } from '../context/UserContext';
+import { useLicense } from '../context/LicenseContext';
 
 const PatientDirectory = () => {
   const [patients, setPatients] = useState([]);
@@ -27,6 +28,7 @@ const PatientDirectory = () => {
   const [paymentFilter, setPaymentFilter] = useState('All');
   const [deleteId, setDeleteId] = useState(null);
   const { user } = useUser();
+  const { licenseExpired } = useLicense();
 
   useEffect(() => {
     loadPatients();
@@ -92,7 +94,12 @@ const PatientDirectory = () => {
           >
             <FileDown size={18} /> <span>Export CSV</span>
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm" onClick={() => setIsAddOpen(true)}>
+          <button
+            className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => setIsAddOpen(true)}
+            disabled={licenseExpired}
+            title={licenseExpired ? 'License expired — contact vendor to renew' : ''}
+          >
             <Plus size={18} /> <span>Add Patient</span>
           </button>
         </div>
@@ -192,9 +199,9 @@ const PatientDirectory = () => {
                         <Wallet size={14} /> Pay
                       </button>
                     )}
-                    <button onClick={() => handleEdit(patient)} className="p-1 text-blue-500 hover:bg-blue-50 rounded" title="Edit"><Edit size={16} /></button>
+                    <button onClick={() => handleEdit(patient)} className={`p-1 text-blue-500 hover:bg-blue-50 rounded ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`} title={licenseExpired ? 'License expired' : 'Edit'} disabled={licenseExpired}><Edit size={16} /></button>
                     {user?.role === 'owner' && (
-                      <button onClick={() => setDeleteId(patient.id)} className="p-1 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 size={16} /></button>
+                      <button onClick={() => setDeleteId(patient.id)} className={`p-1 text-red-500 hover:bg-red-50 rounded ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`} title={licenseExpired ? 'License expired' : 'Delete'} disabled={licenseExpired}><Trash2 size={16} /></button>
                     )}
                   </td>
                 </tr>

@@ -40,6 +40,9 @@ Desktop.ini
 .env.local
 .env.*.local
 
+# ─── License (user-specific activation data) ─────────────────
+license.json
+
 # ─── Logs ─────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
@@ -52,3 +55,6 @@ electron-builder.env
 
 # ─── Personal files and Task lists─────────────────────────────────
 fix_and_task_list.md
+PROJECT_SUMMARY.md
+prompt_license_portal.md
+prompt_license_server.md

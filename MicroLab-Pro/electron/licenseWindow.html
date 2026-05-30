@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MicroLab Pro — License Activation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      -webkit-app-region: drag;
+    }
+
+    .container {
+      width: 420px;
+      background: rgba(30, 41, 59, 0.95);
+      border-radius: 16px;
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      padding: 32px;
+      -webkit-app-region: no-drag;
+      backdrop-filter: blur(20px);
+    }
+
+    /* ─── Header ─────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 24px;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.3px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    /* ─── Reason Banner ──────────────────────── */
+    .reason-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #fca5a5;
+      text-align: center;
+      display: none;
+    }
+
+    .reason-banner.show {
+      display: block;
+    }
+
+    .reason-banner.info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+    }
+
+    /* ─── Form ───────────────────────────────── */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+
+    .key-input {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(100, 116, 139, 0.4);
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-family: 'Courier New', monospace;
+      font-size: 15px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .key-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .key-input::placeholder {
+      color: #475569;
+      letter-spacing: 2px;
+    }
+
+    /* ─── Buttons ─────────────────────────────── */
+    .btn-activate {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 12px;
+    }
+
+    .btn-activate:hover:not(:disabled) {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-activate:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-activate.loading {
+      position: relative;
+      color: transparent;
+    }
+
+    .btn-activate.loading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ─── Error ───────────────────────────────── */
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #fca5a5;
+      text-align: center;
+      display: none;
+    }
+
+    .error-msg.show {
+      display: block;
+    }
+
+    /* ─── Footer ──────────────────────────────── */
+    .footer {
+      text-align: center;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    .footer p {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .footer a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* ─── Decorative ─────────────────────────── */
+    .glow-orb {
+      position: fixed;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .glow-orb.blue { background: #3b82f6; top: -50px; left: -50px; }
+    .glow-orb.indigo { background: #6366f1; bottom: -50px; right: -50px; }
+  </style>
+</head>
+<body>
+  <!-- Decorative background orbs -->
+  <div class="glow-orb blue"></div>
+  <div class="glow-orb indigo"></div>
+
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-icon">🔬</div>
+      <h1>MicroLab Pro</h1>
+      <p>License Activation Required</p>
+    </div>
+
+    <!-- Reason Banner (set dynamically via IPC) -->
+    <div id="reasonBanner" class="reason-banner info show">
+      Enter your license key to activate MicroLab Pro on this machine.
+    </div>
+
+    <!-- Error Message -->
+    <div id="errorMsg" class="error-msg"></div>
+
+    <!-- Activation Form -->
+    <div class="form-group">
+      <label>License Key</label>
+      <input
+        type="text"
+        id="licenseKeyInput"
+        class="key-input"
+        placeholder="MLAB-XXXX-XXXX-XXXX"
+        maxlength="19"
+        autofocus
+      />
+    </div>
+
+    <button id="activateBtn" class="btn-activate" onclick="handleActivate()">
+      Activate License
+    </button>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>Don't have a license key?</p>
+      <p style="margin-top: 4px;">
+        <a href="#" id="signupLink" onclick="openSignup()">Sign up for a free trial →</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // ─── Auto-format license key input ────────────────────────────
+    const keyInput = document.getElementById('licenseKeyInput');
+    const activateBtn = document.getElementById('activateBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const reasonBanner = document.getElementById('reasonBanner');
+
+    keyInput.addEventListener('input', (e) => {
+      let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+      // Auto-insert dashes: MLAB-XXXX-XXXX-XXXX
+      if (val.length > 4) val = val.slice(0, 4) + '-' + val.slice(4);
+      if (val.length > 9) val = val.slice(0, 9) + '-' + val.slice(9);
+      if (val.length > 14) val = val.slice(0, 14) + '-' + val.slice(14);
+      if (val.length > 19) val = val.slice(0, 19);
+
+      e.target.value = val;
+
+      // Clear error when typing
+      hideError();
+    });
+
+    // Allow Enter key to submit
+    keyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleActivate();
+    });
+
+    // ─── Activation handler ──────────────────────────────────────
+    async function handleActivate() {
+      const key = keyInput.value.trim();
+
+      if (!key || key.length < 19) {
+        showError('Please enter a valid license key (MLAB-XXXX-XXXX-XXXX).');
+        return;
+      }
+
+      // Show loading state
+      activateBtn.classList.add('loading');
+      activateBtn.disabled = true;
+      hideError();
+
+      try {
+        // Call main process via IPC
+        const result = await window.licenseAPI.activate(key);
+
+        if (result.success) {
+          // Success — main process will close this window and open the app
+          reasonBanner.textContent = '✅ License activated! Starting MicroLab Pro...';
+          reasonBanner.className = 'reason-banner info show';
+        } else {
+          showError(result.error || 'Activation failed. Please check your key and try again.');
+        }
+      } catch (err) {
+        showError('Could not reach the license server. Check your internet connection.');
+      } finally {
+        activateBtn.classList.remove('loading');
+        activateBtn.disabled = false;
+      }
+    }
+
+    // ─── Open sign-up page in browser ────────────────────────────
+    function openSignup() {
+      window.licenseAPI.openSignup();
+    }
+
+    // ─── Error helpers ───────────────────────────────────────────
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('show');
+    }
+
+    function hideError() {
+      errorMsg.classList.remove('show');
+    }
+
+    // ─── Set reason from main process ────────────────────────────
+    window.addEventListener('DOMContentLoaded', () => {
+      window.licenseAPI.onSetReason((reason) => {
+        const messages = {
+          'not_activated': 'Enter your license key to activate MicroLab Pro on this machine.',
+          'license_expired': 'Your license has expired. Enter a new key or contact the vendor to renew.',
+          'license_suspended': 'Your license has been suspended. Contact support for assistance.',
+          'activation_revoked': 'Your activation has been revoked. Re-enter your key or contact support.',
+          'grace_period_expired': 'Offline grace period expired. Connect to the internet and try again.',
+          'invalid_token': 'License data is corrupted. Please re-activate with your key.',
+        };
+
+        const text = messages[reason] || reason;
+        reasonBanner.textContent = text;
+
+        if (reason === 'not_activated') {
+          reasonBanner.className = 'reason-banner info show';
+        } else {
+          reasonBanner.className = 'reason-banner show';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

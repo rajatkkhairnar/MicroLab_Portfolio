@@ -1,7 +1,7 @@
 /**
  * Settings.jsx — Owner Configuration Panel
  * 
- * Admin-only settings page with four tabs:
+ * Admin-only settings page with five tabs:
  * 
  *   1. Lab Profile — Lab name, address, phone numbers, logo upload,
  *      lab assistant/technician names, report footer text, lab timing.
@@ -16,6 +16,9 @@
  * 
  *   4. Software Update — Check for updates via electron-updater,
  *      download and install updates from GitHub Releases (owner-only).
+ * 
+ *   5. License — View license key, plan, expiry date, and status.
+ *      Deactivate license to free the slot for another machine.
  */
 import React, { useState, useEffect } from 'react';
 import {
@@ -36,14 +39,21 @@ import {
   RefreshCw,
   DownloadCloud,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  KeyRound,
+  Copy,
+  LogOut,
+  Calendar,
+  Cpu
 } from 'lucide-react';
 import { DEFAULT_TESTS } from '../utils/defaultTests';
 import { TEST_CATALOG } from '../utils/testCatalog';
 import { useUser } from '../context/UserContext';
+import { useLicense } from '../context/LicenseContext';
 
 const Settings = () => {
   const { user } = useUser();
+  const { licenseInfo, licenseExpired, refreshLicense } = useLicense();
   const isAdmin = user?.role === 'owner';
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
@@ -52,6 +62,12 @@ const Settings = () => {
   // --- Software Update State ---
   const [appVersion, setAppVersion] = useState('');
   const [updateStatus, setUpdateStatus] = useState(null); // { status, version, percent, message }
+
+  // --- License State ---
+  const [licenseDetail, setLicenseDetail] = useState(null);
+  const [deactivating, setDeactivating] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   // --- Lab Profile State ---
   const [labProfile, setLabProfile] = useState({
@@ -81,8 +97,59 @@ const Settings = () => {
   const [expandedTest, setExpandedTest] = useState(null); // which test row is expanded
 
   // --- Load Data ---
+  // Load license details
+  const loadLicenseDetail = async () => {
+    try {
+      const info = await window.api.getLicenseInfo();
+      setLicenseDetail(info);
+    } catch (err) {
+      console.error('Failed to load license info:', err);
+    }
+  };
+
+  // Handle deactivation
+  const handleDeactivate = async () => {
+    setDeactivating(true);
+    try {
+      const result = await window.api.deactivateLicense();
+      if (result.success) {
+        alert('License deactivated. The app will now close. Re-open to enter a new key.');
+        // The app will restart and show the license activation window
+        window.location.reload();
+      } else {
+        alert('Deactivation failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Deactivation failed: ' + err.message);
+    } finally {
+      setDeactivating(false);
+      setConfirmDeactivate(false);
+    }
+  };
+
+  // Copy license key
+  const copyLicenseKey = async () => {
+    if (!licenseDetail?.licenseKey) return;
+    try {
+      await navigator.clipboard.writeText(licenseDetail.licenseKey);
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 2000);
+    } catch {
+      // Fallback
+      const input = document.createElement('input');
+      input.value = licenseDetail.licenseKey;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 2000);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
+    loadLicenseDetail();
     // Load app version
     if (window.api.getAppVersion) {
       window.api.getAppVersion().then(v => setAppVersion(v));
@@ -375,6 +442,21 @@ const Settings = () => {
             >
               <Download size={20} />
               <span className="font-medium">Software Update</span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => { setActiveTab('license'); loadLicenseDetail(); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${activeTab === 'license' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+              `}
+            >
+              <KeyRound size={20} />
+              <span className="font-medium">License</span>
+              {licenseExpired && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              )}
             </button>
           )}
         </div>
@@ -1000,6 +1082,140 @@ const Settings = () => {
                   💡 Updates replace only the application code. Your <strong className="text-slate-400">patient data, settings, and database</strong> are never affected.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* SECTION 5: LICENSE (Admin Only) */}
+          {activeTab === 'license' && isAdmin && (
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl animate-in fade-in slide-in-from-right-4 duration-300">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <KeyRound className="text-blue-400" /> License Information
+              </h2>
+
+              {licenseDetail ? (
+                <div className="space-y-6">
+                  {/* License Key Card */}
+                  <div className="bg-slate-900 rounded-lg p-5 border border-slate-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">License Key</p>
+                      <button
+                        onClick={copyLicenseKey}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 transition-colors px-2 py-1 rounded hover:bg-slate-800"
+                      >
+                        {keyCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                        {keyCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                    <p className="text-2xl font-bold font-mono text-white tracking-widest">
+                      {licenseDetail.licenseKey}
+                    </p>
+                  </div>
+
+                  {/* Info Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Plan */}
+                    <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Cpu size={16} className="text-blue-400" />
+                        <p className="text-xs font-bold text-slate-400 uppercase">Plan</p>
+                      </div>
+                      <p className="text-lg font-bold text-white capitalize">
+                        {licenseDetail.plan || 'Offline'}
+                      </p>
+                    </div>
+
+                    {/* Expiry */}
+                    <div className={`bg-slate-900 rounded-lg p-4 border ${
+                      licenseDetail.expired ? 'border-red-700' : 'border-slate-700'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Calendar size={16} className={licenseDetail.expired ? 'text-red-400' : 'text-emerald-400'} />
+                        <p className="text-xs font-bold text-slate-400 uppercase">Expires</p>
+                      </div>
+                      <p className={`text-lg font-bold ${
+                        licenseDetail.expired ? 'text-red-400' : 'text-white'
+                      }`}>
+                        {licenseDetail.expiresAt
+                          ? new Date(licenseDetail.expiresAt).toLocaleDateString('en-IN', {
+                              day: 'numeric', month: 'short', year: 'numeric'
+                            })
+                          : 'Never'}
+                      </p>
+                      {licenseDetail.expired && (
+                        <p className="text-xs text-red-400 mt-1">Subscription expired — contact vendor to renew</p>
+                      )}
+                    </div>
+
+                    {/* Status */}
+                    <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldCheck size={16} className="text-blue-400" />
+                        <p className="text-xs font-bold text-slate-400 uppercase">Status</p>
+                      </div>
+                      {licenseDetail.expired ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-900/30 text-red-400 rounded-full text-sm font-semibold border border-red-700">
+                          <AlertTriangle size={14} /> Expired
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-900/30 text-emerald-400 rounded-full text-sm font-semibold border border-emerald-700">
+                          <CheckCircle2 size={14} /> Active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Roles Info */}
+                  <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
+                    <p className="text-xs text-slate-500">
+                      <strong className="text-slate-400">User Accounts:</strong> {licenseDetail.numRoles || 2} (Admin{licenseDetail.numRoles >= 3 ? ' + 2 Staff' : ' + 1 Staff'})
+                    </p>
+                  </div>
+
+                  {/* Deactivate Section */}
+                  <div className="pt-4 border-t border-slate-700">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-300">Deactivate License</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-md">
+                          Remove this license from this machine. Use this to move your license to a different computer. The app will close after deactivation.
+                        </p>
+                      </div>
+                      {!confirmDeactivate ? (
+                        <button
+                          onClick={() => setConfirmDeactivate(true)}
+                          className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 px-4 py-2 border border-red-800 hover:border-red-700 rounded-lg transition-colors hover:bg-red-900/20 flex-shrink-0"
+                        >
+                          <LogOut size={16} />
+                          Deactivate
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => setConfirmDeactivate(false)}
+                            className="px-3 py-2 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleDeactivate}
+                            disabled={deactivating}
+                            className="flex items-center gap-2 text-sm bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {deactivating ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
+                            {deactivating ? 'Deactivating...' : 'Yes, Deactivate'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-slate-500">
+                  <KeyRound size={32} className="mx-auto mb-3 opacity-40" />
+                  <p>No license information available.</p>
+                  <p className="text-xs mt-1">This should not happen if the app started correctly.</p>
+                </div>
+              )}
             </div>
           )}
         </div>

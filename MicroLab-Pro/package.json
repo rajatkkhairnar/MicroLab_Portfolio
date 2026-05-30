@@ -1,7 +1,7 @@
 {
   "name": "microlab-pro",
   "productName": "MicroLab-Pro",
-  "version": "3.3.0",
+  "version": "3.3.1",
   "type": "module",
   "description": "Offline-first Laboratory Information Management System",
   "main": "electron/main.cjs",
@@ -15,9 +15,12 @@
     "rebuild-sqlite": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "axios": "^1.16.1",
     "better-sqlite3": "^9.4.0",
     "electron-updater": "^6.8.3",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.344.0",
+    "node-machine-id": "^1.1.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.1",

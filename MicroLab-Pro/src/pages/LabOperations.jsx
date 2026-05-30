@@ -21,8 +21,10 @@ import {
 import EnterResultsModal from '../components/EnterResultsModal';
 import BookTestModal from '../components/BookTestModal';
 import { generateReportHTML } from '../utils/generateReportHTML';
+import { useLicense } from '../context/LicenseContext';
 
 const LabOperations = () => {
+  const { licenseExpired } = useLicense();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -140,7 +142,9 @@ const LabOperations = () => {
           </button>
           <button 
             onClick={() => setIsBookModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200"
+            disabled={licenseExpired}
+            title={licenseExpired ? 'License expired — contact vendor to renew' : ''}
+            className={`flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm shadow-blue-200 ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Plus size={18} />
             <span>Book New Test</span>
@@ -272,7 +276,9 @@ const LabOperations = () => {
                         setSelectedOrder(order);
                         setIsResultModalOpen(true);
                       }}
-                      className="text-blue-600 font-medium text-sm hover:underline"
+                      disabled={licenseExpired}
+                      title={licenseExpired ? 'License expired — contact vendor to renew' : ''}
+                      className={`text-blue-600 font-medium text-sm hover:underline ${licenseExpired ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       Enter Results
                     </button>

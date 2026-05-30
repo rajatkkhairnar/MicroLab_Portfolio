@@ -11,6 +11,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import { UserProvider, useUser } from './context/UserContext';
+import { LicenseProvider } from './context/LicenseContext';
 
 // Page Imports
 import Dashboard from './pages/Dashboard';
@@ -60,7 +61,9 @@ const AppLayout = ({ children }) => (
 function App() {
   return (
     <UserProvider>
-      <MainRoutes />
+      <LicenseProvider>
+        <MainRoutes />
+      </LicenseProvider>
     </UserProvider>
   );
 }

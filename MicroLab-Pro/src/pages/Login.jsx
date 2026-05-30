@@ -6,14 +6,17 @@
  * Default credentials are displayed for initial setup convenience.
  */
 import React, { useState } from 'react';
-import { Microscope, ArrowRight, Loader2 } from 'lucide-react';
+import { Microscope, ArrowRight, Loader2, AlertTriangle, X } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import { useLicense } from '../context/LicenseContext';
 
 const Login = () => {
   const { login } = useUser();
+  const { licenseExpired } = useLicense();
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showExpiryNotice, setShowExpiryNotice] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +26,10 @@ const Login = () => {
     const res = await login(formData.username, formData.password);
     if (!res.success) {
       setError(res.message);
+      setLoading(false);
+    } else if (licenseExpired) {
+      // Show one-time expiry notification before proceeding
+      setShowExpiryNotice(true);
       setLoading(false);
     }
   };
@@ -97,6 +104,34 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      {/* License Expired Notification Overlay */}
+      {showExpiryNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl w-[440px] overflow-hidden">
+            <div className="bg-amber-50 px-6 py-4 flex items-start gap-3 border-b border-amber-100">
+              <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={22} />
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">License Expired</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Your MicroLab Pro license has expired. You can view existing data (patients, reports, history) but cannot add, edit, or delete records until you renew.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-slate-50">
+              <p className="text-xs text-slate-500 mb-4">
+                Contact your vendor to renew your subscription and restore full access.
+              </p>
+              <button
+                onClick={() => setShowExpiryNotice(false)}
+                className="w-full py-2.5 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors"
+              >
+                OK, Continue in View-Only Mode
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
