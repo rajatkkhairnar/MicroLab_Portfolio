@@ -71,31 +71,31 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   };
 
   // =============================================
-  // Consistent spacing tokens (used everywhere)
+  // Consistent spacing tokens (tightened for CBC fit)
   // =============================================
   const SP = {
-    page: '10mm 14mm',       // page padding: top/bottom 10mm, left/right 14mm
-    section: '14px',            // gap between header→patient, patient→results, results→footer
-    headerPb: '12px',            // header padding-bottom (above border)
-    patientPd: '10px 14px',       // patient info box inner padding
-    testGap: '16px',            // gap between test sections
-    rowPad: '5px 0',           // table row cell padding
-    footerPt: '14px',            // footer padding-top (below border)
+    page: '8mm 12mm',        // page padding: top/bottom 8mm, left/right 12mm
+    section: '8px',            // gap between header→patient, patient→results, results→footer
+    headerPb: '8px',           // header padding-bottom (above border)
+    patientPd: '6px 10px',     // patient info box inner padding
+    testGap: '10px',           // gap between test sections
+    rowPad: '3px 0',           // table row cell padding (tightened)
+    footerPt: '10px',          // footer padding-top (below border)
   };
 
   // =============================================
-  // Text size tokens (slightly bumped up)
+  // Text size tokens (compact for better page fit)
   // =============================================
   const TXT = {
-    labName: '22px',   // lab title
-    subInfo: '14px',   // address, timing, phones
-    patLabel: '14px',   // patient info labels & values
-    testHead: '15px',   // test section heading (e.g. "COMPLETE BLOOD COUNT")
-    thRow: '14px',   // table header row
-    tdRow: '14px',   // table body row
-    cbcSub: '12px',   // CBC sub-section header
-    footer: '14px',   // footer signatory text
-    footerEnd: '12px',   // "*** End of Report ***"
+    labName: '20px',   // lab title
+    subInfo: '12px',   // address, timing, phones
+    patLabel: '12px',  // patient info labels & values
+    testHead: '13px',  // test section heading (e.g. "COMPLETE BLOOD COUNT")
+    thRow: '12px',     // table header row
+    tdRow: '12px',     // table body row
+    cbcSub: '11px',    // CBC sub-section header
+    footer: '12px',    // footer signatory text
+    footerEnd: '11px', // "*** End of Report ***"
   };
 
   // --- Build Header ---
@@ -238,8 +238,10 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       });
     }
 
+    // CBC is too large to avoid page breaks — let it flow naturally
+    const avoidBreak = !isCBC;
     resultsHTML += `
-      <div style="margin-bottom: ${SP.testGap}; ${index > 0 ? `padding-top: ${SP.testGap};` : ''} page-break-inside: auto;">
+      <div class="${avoidBreak ? 'test-section' : ''}" style="margin-bottom: ${SP.testGap}; ${index > 0 ? `padding-top: ${SP.testGap};` : ''}">
         <h3 style="font-size: ${TXT.testHead}; font-weight: 700; border-bottom: 1px solid ${borderCol}; margin-bottom: 8px; padding-bottom: 3px; text-transform: uppercase; color: ${headingColor};">
           ${testName}
         </h3>
@@ -260,12 +262,14 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   });
 
   // --- Build Footer ---
+  // Footer uses position:fixed to pin to page bottom on EVERY page (including last)
   // When onlyReport is true, skip footer entirely
-  let footerInnerHTML = '';
+  let footerHTML = '';
   if (!onlyReport && !isLetterhead && template !== 'unique') {
-    footerInnerHTML = `
+    footerHTML = `
+    <div class="fixed-footer">
       <div style="padding-top: ${SP.footerPt}; border-top: 1px solid #e2e8f0;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; margin-bottom: 10px;">
           <div style="text-align: left;">
             ${labProfile.labAssistant ? `
               <p style="font-weight: 700; color: #1e293b; font-size: ${TXT.footer}; margin: 0;">Lab Assistant</p>
@@ -285,7 +289,8 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
         <div style="text-align: center; font-size: ${TXT.footerEnd}; color: #94a3b8;">
           ${labProfile.footerText || '*** End of Report ***'}
         </div>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   // --- Watermark / Background Logo ---
@@ -295,10 +300,12 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   const showWatermark = !onlyReport && watermarkSrc;
 
   // =============================================
-  // Use a <table> layout trick so that:
-  //   - <thead> repeats as a running header on every printed page
-  //   - <tfoot> repeats as a running footer on every printed page
-  //   - The watermark uses position:fixed to appear on all pages
+  // Layout strategy:
+  //   - <thead> repeats the header on every printed page
+  //   - Footer uses position:fixed;bottom:0 to pin to EVERY page bottom
+  //     (including the last page — unlike tfoot which only pins on full pages)
+  //   - The watermark also uses position:fixed to appear on all pages
+  //   - Content has bottom padding so it never overlaps the footer
   // =============================================
 
   // --- Full HTML Document ---
@@ -313,9 +320,12 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       margin: 0;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      font-size: 14px;
+      font-size: 12px;
       color: #1e293b;
       background: #fff;
       -webkit-print-color-adjust: exact;
@@ -339,10 +349,21 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       object-fit: contain;
     }
 
+    /* Fixed footer — pinned to bottom of EVERY page (including last) */
+    .fixed-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0 12mm 8mm 12mm;
+      background: #fff;
+      z-index: 100;
+    }
+
     /* 
-     * Running header/footer trick using <table> with thead/tfoot.
-     * In Chromium's print engine, <thead> and <tfoot> of a table
-     * repeat on every page automatically.
+     * Running header using <table> with thead.
+     * In Chromium's print engine, <thead> of a table
+     * repeats on every page automatically.
      */
     .report-table {
       width: 210mm;
@@ -351,24 +372,15 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
 
     /* Header row: repeats on each page */
     .report-table > thead > tr > td {
-      padding: 10mm 14mm 0 14mm;
+      padding: 8mm 12mm 0 12mm;
     }
     .report-table > thead .header-content {
       margin-bottom: ${SP.section};
     }
 
-    /* Footer row: repeats on each page */
-    .report-table > tfoot > tr > td {
-      padding: 0 14mm 10mm 14mm;
-      vertical-align: bottom;
-    }
-    .report-table > tfoot .footer-content {
-      margin-top: 20px;
-    }
-
     /* Body content */
     .report-table > tbody > tr > td {
-      padding: 0 14mm;
+      padding: 0 12mm;
       vertical-align: top;
     }
 
@@ -376,6 +388,14 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       position: relative;
       z-index: 10;
       width: 100%;
+      /* Bottom padding to prevent content from overlapping the fixed footer */
+      padding-bottom: 28mm;
+    }
+
+    /* Prevent non-CBC test sections from splitting across pages */
+    .test-section {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
 
     table.inner-table { border-collapse: collapse; }
@@ -386,6 +406,8 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   <div class="watermark">
     <img src="${watermarkSrc}" />
   </div>` : ''}
+
+  ${footerHTML}
 
   <table class="report-table">
     <!-- THEAD: Running header (repeats on every page) -->
@@ -398,17 +420,6 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
         </td>
       </tr>
     </thead>
-
-    <!-- TFOOT: Running footer (repeats on every page) -->
-    <tfoot>
-      <tr>
-        <td>
-          <div class="footer-content">
-            ${footerInnerHTML}
-          </div>
-        </td>
-      </tr>
-    </tfoot>
 
     <!-- TBODY: Main report content -->
     <tbody>
