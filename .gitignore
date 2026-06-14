@@ -1,5 +1,8 @@
 # Root .gitignore for MicroLab_Portfolio
 
+# License server (hosted separately)
+license-server/
+
 # Dependencies
 node_modules/
 

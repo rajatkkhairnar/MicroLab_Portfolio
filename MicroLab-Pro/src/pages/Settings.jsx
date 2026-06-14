@@ -1,23 +1,28 @@
 /**
  * Settings.jsx — Owner Configuration Panel
  * 
- * Admin-only settings page with five tabs:
+ * Admin-only settings page with six tabs:
  * 
- *   1. Lab Profile — Lab name, address, phone numbers, logo upload,
+ *   1. PDF Layout — Visual layout designer for customizing PDF report
+ *      header, footer, watermark, and global text styling.
+ *      The layout is stored as JSON in the settings table.
+ * 
+ *   2. Lab Profile — Lab name, address, phone numbers, logo upload,
  *      lab assistant/technician names, report footer text, lab timing.
- *      All fields are saved to the SQLite 'settings' table as key-value pairs.
+ *      Fields shown here are dynamically filtered based on which elements
+ *      are enabled in the PDF Layout.
  * 
- *   2. Doctor Management — CRUD for referring doctors used in test bookings.
+ *   3. Doctor Management — CRUD for referring doctors used in test bookings.
  *      Supports inline editing and commission rate tracking.
  * 
- *   3. Test Settings — Toggle tests on/off, set custom pricing,
+ *   4. Test Settings — Toggle tests on/off, set custom pricing,
  *      expand each test to configure individual parameters (enable/disable,
  *      customize reference ranges). Merges user overrides with testCatalog defaults.
  * 
- *   4. Software Update — Check for updates via electron-updater,
+ *   5. Software Update — Check for updates via electron-updater,
  *      download and install updates from GitHub Releases (owner-only).
  * 
- *   5. License — View license key, plan, expiry date, and status.
+ *   6. License — View license key, plan, expiry date, and status.
  *      Deactivate license to free the slot for another machine.
  */
 import React, { useState, useEffect } from 'react';
@@ -44,18 +49,25 @@ import {
   Copy,
   LogOut,
   Calendar,
-  Cpu
+  Cpu,
+  Palette
 } from 'lucide-react';
 import { DEFAULT_TESTS } from '../utils/defaultTests';
 import { TEST_CATALOG } from '../utils/testCatalog';
 import { useUser } from '../context/UserContext';
 import { useLicense } from '../context/LicenseContext';
+import PdfLayoutDesigner from '../components/PdfLayoutDesigner';
+import { getVisibleProfileFields, getDefaultPdfLayout } from '../utils/defaultPdfLayout';
 
 const Settings = () => {
   const { user } = useUser();
   const { licenseInfo, licenseExpired, refreshLicense } = useLicense();
   const isAdmin = user?.role === 'owner';
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('pdfLayout');
+
+  // --- PDF Layout Config State ---
+  const [pdfLayoutConfig, setPdfLayoutConfig] = useState(null);
+  const [savingLayout, setSavingLayout] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -190,6 +202,11 @@ const Settings = () => {
       // Load parameter-level settings
       if (profileObj.testParamSettings) {
         setTestParamSettings(JSON.parse(profileObj.testParamSettings));
+      }
+
+      // Load PDF layout config
+      if (profileObj.pdfLayoutConfig) {
+        setPdfLayoutConfig(JSON.parse(profileObj.pdfLayoutConfig));
       }
     } catch (err) {
       console.error(err);
@@ -382,6 +399,30 @@ const Settings = () => {
     }
   };
 
+  // --- Handler: Save PDF Layout ---
+  const savePdfLayout = async (config) => {
+    setSavingLayout(true);
+    try {
+      await window.api.saveLabProfile({
+        pdfLayoutConfig: JSON.stringify(config)
+      });
+      setPdfLayoutConfig(config);
+      setTimeout(() => setSavingLayout(false), 500);
+      alert('PDF layout saved successfully!');
+    } catch (err) {
+      console.error(err);
+      setSavingLayout(false);
+      alert('Failed to save PDF layout.');
+    }
+  };
+
+  // --- Compute visible Lab Profile fields from layout config ---
+  const visibleFields = getVisibleProfileFields(pdfLayoutConfig);
+  const isFieldVisible = (fieldKey) => {
+    if (!visibleFields) return true; // No config saved yet — show all
+    return visibleFields.has(fieldKey);
+  };
+
   // Reusable input style
   const inputClass = "w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-white focus:border-blue-500 outline-none";
   const inputClassError = "w-full bg-slate-900 border border-red-500 rounded-lg px-4 py-2 text-white focus:border-red-400 outline-none";
@@ -403,6 +444,16 @@ const Settings = () => {
 
         {/* Sidebar Navigation (Internal) */}
         <div className="lg:col-span-3 space-y-2">
+          <button
+            onClick={() => setActiveTab('pdfLayout')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+              ${activeTab === 'pdfLayout' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
+            `}
+          >
+            <Palette size={20} />
+            <span className="font-medium">PDF Layout</span>
+          </button>
+
           <button
             onClick={() => setActiveTab('profile')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all
@@ -464,6 +515,23 @@ const Settings = () => {
         {/* Content Area */}
         <div className="lg:col-span-9">
 
+          {/* SECTION 0: PDF LAYOUT DESIGNER */}
+          {activeTab === 'pdfLayout' && (
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl animate-in fade-in slide-in-from-right-4 duration-300">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <Palette className="text-blue-400" /> PDF Report Layout
+              </h2>
+              <p className="text-slate-400 text-sm mb-6">
+                Customize your lab's PDF report header, footer, watermark, and styling. Changes here affect all future printed reports.
+              </p>
+              <PdfLayoutDesigner
+                layoutConfig={pdfLayoutConfig}
+                onSave={savePdfLayout}
+                saving={savingLayout}
+              />
+            </div>
+          )}
+
           {/* SECTION 1: LAB PROFILE */}
           {activeTab === 'profile' && (
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl animate-in fade-in slide-in-from-right-4 duration-300">
@@ -471,9 +539,20 @@ const Settings = () => {
                 <Building2 className="text-blue-400" /> Lab Report Header
               </h2>
 
+              {/* Info banner when layout config is active */}
+              {visibleFields && (
+                <div className="mb-5 p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg text-blue-300 text-sm flex items-start gap-2">
+                  <Palette size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>Only fields used by your <strong>PDF Layout</strong> are shown below. To add more fields, enable them in the PDF Layout tab.</span>
+                </div>
+              )}
+
               <form onSubmit={saveProfile} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Lab Logo & Watermark Logo Row */}
+                  {(isFieldVisible('labLogo') || isFieldVisible('watermarkLogo') || isFieldVisible('labName')) && (
                   <div className="col-span-2 flex items-center gap-6">
+                    {isFieldVisible('labLogo') && (
                     <div className="flex-shrink-0">
                       <label className="block text-sm font-medium text-slate-400 mb-2">Lab Logo</label>
                       {labProfile.labLogo ? (
@@ -509,6 +588,8 @@ const Settings = () => {
                         </div>
                       )}
                     </div>
+                    )}
+                    {isFieldVisible('watermarkLogo') && (
                     <div className="flex-shrink-0">
                       <label className="block text-sm font-medium text-slate-400 mb-2">Watermark Logo</label>
                       {labProfile.watermarkLogo ? (
@@ -544,6 +625,8 @@ const Settings = () => {
                         </div>
                       )}
                     </div>
+                    )}
+                    {isFieldVisible('labName') && (
                     <div className="flex-1">
                       <label className="block text-sm font-medium text-slate-400 mb-1">Lab Name (Appears at top)</label>
                       <input
@@ -554,8 +637,11 @@ const Settings = () => {
                       />
                       {errors.labName && <p className="text-red-400 text-xs mt-1">{errors.labName}</p>}
                     </div>
+                    )}
                   </div>
+                  )}
 
+                  {isFieldVisible('address') && (
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-400 mb-1">Full Address</label>
                     <textarea
@@ -566,7 +652,9 @@ const Settings = () => {
                       className={inputClass + ' py-3'}
                     ></textarea>
                   </div>
+                  )}
 
+                  {isFieldVisible('labTiming') && (
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-400 mb-1">Lab Timing</label>
                     <input
@@ -577,7 +665,9 @@ const Settings = () => {
                       className={inputClass}
                     />
                   </div>
+                  )}
 
+                  {isFieldVisible('phone') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Phone Number</label>
                     <input
@@ -590,7 +680,9 @@ const Settings = () => {
                     />
                     {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
                   </div>
+                  )}
 
+                  {isFieldVisible('phone2') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Phone Number 2</label>
                     <input
@@ -603,23 +695,28 @@ const Settings = () => {
                     />
                     {errors.phone2 && <p className="text-red-400 text-xs mt-1">{errors.phone2}</p>}
                   </div>
+                  )}
 
-
-
+                  {isFieldVisible('labAssistant') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Lab Assistant Name</label>
                     <input name="labAssistant" value={labProfile.labAssistant} onChange={handleProfileChange} placeholder="e.g. A.K. Kokani (DMLT)" className={inputClass} />
                   </div>
+                  )}
 
+                  {isFieldVisible('labTechnician') && (
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Lab Technician Name</label>
                     <input name="labTechnician" value={labProfile.labTechnician} onChange={handleProfileChange} placeholder="e.g. P. H. Rana (M.SC.MLT)" className={inputClass} />
                   </div>
+                  )}
 
+                  {isFieldVisible('footerText') && (
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-400 mb-1">Report Footer Text</label>
                     <input name="footerText" value={labProfile.footerText} onChange={handleProfileChange} className={inputClass} />
                   </div>
+                  )}
                 </div>
 
                 <div className="pt-6 border-t border-slate-700 flex justify-end">

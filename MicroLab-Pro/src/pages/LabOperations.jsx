@@ -85,12 +85,18 @@ const LabOperations = () => {
             testParamSettings = JSON.parse(labProfile.testParamSettings);
           }
 
+          let pdfLayoutConfig = null;
+          if (labProfile.pdfLayoutConfig) {
+            pdfLayoutConfig = JSON.parse(labProfile.pdfLayoutConfig);
+          }
+
           const htmlContent = generateReportHTML({
             order: selectedOrder,
             results: data,
             labProfile,
             template: 'modern',
             testParamSettings,
+            pdfLayoutConfig,
             onlyReport: isOnlyReport
           });
 

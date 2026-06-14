@@ -9,16 +9,22 @@
  * Supports multiple report templates: Modern, Classic, Minimalist,
  * Bold Professional, Letterhead (no header), Compact, and Unique.
  * 
+ * Also supports a dynamic pdfLayoutConfig object that lets each lab
+ * customize header elements, footer elements, watermark/background,
+ * and global text styling without touching the test results body.
+ * 
  * All CSS is inlined — no external stylesheets needed.
  * Lab branding (name, logo, footer) comes from the labProfile object.
  * Test parameters and reference ranges come from testCatalog + user overrides.
  * 
  * Options:
  *   - onlyReport: if true, produces a blank report (no header, footer, logo, watermark)
+ *   - pdfLayoutConfig: if provided, overrides template-based header/footer/watermark rendering
  */
 import { TEST_CATALOG } from './testCatalog';
 import { getEffectiveParams } from './getEffectiveParams';
-export function generateReportHTML({ order, results, labProfile, template = 'modern', testParamSettings = {}, onlyReport = false }) {
+import { FONT_FAMILIES } from './defaultPdfLayout';
+export function generateReportHTML({ order, results, labProfile, template = 'modern', testParamSettings = {}, pdfLayoutConfig = null, onlyReport = false }) {
   const isLetterhead = template === 'letterhead';
   const isCompact = template === 'compact';
 
@@ -103,7 +109,67 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   let headerHTML = '';
   if (onlyReport) {
     headerHTML = '';
+  } else if (pdfLayoutConfig && pdfLayoutConfig.header) {
+    // ===== DYNAMIC HEADER from pdfLayoutConfig =====
+    const hc = pdfLayoutConfig.header;
+    if (hc.enabled) {
+      const borderStyle = hc.borderStyle === 'solid' ? `2px solid ${hc.borderColor}`
+        : hc.borderStyle === 'double' ? `4px double ${hc.borderColor}`
+        : 'none';
+
+      const logoEl = hc.elements.find(e => e.id === 'labLogo');
+      const logoEnabled = logoEl?.enabled;
+      const logoPosition = logoEl?.position || 'right';
+      const logoSize = logoEl?.size || '88px';
+
+      const textElements = hc.elements.filter(e => e.id !== 'labLogo' && e.enabled);
+
+      let textHTML = '';
+      textElements.forEach(el => {
+        switch (el.id) {
+          case 'labName':
+            textHTML += `<h1 style="font-size: ${el.fontSize}; font-weight: ${el.fontWeight || '700'}; text-transform: uppercase; letter-spacing: 1px; color: ${el.color}; margin: 0;">${labProfile.labName || 'MICROLAB DIAGNOSTICS'}</h1>`;
+            break;
+          case 'address':
+            textHTML += `<p style="color: ${el.color}; margin-top: 3px; white-space: pre-wrap; font-size: ${el.fontSize}; max-width: 420px; line-height: 1.4;">${labProfile.address || ''}</p>`;
+            break;
+          case 'labTiming':
+            if (labProfile.labTiming) {
+              textHTML += `<p style="color: ${el.color}; margin-top: 2px; font-size: ${el.fontSize}; font-weight: 500;">${labProfile.labTiming}</p>`;
+            }
+            break;
+          case 'phones':
+            if (labProfile.phone || labProfile.phone2) {
+              textHTML += `<div style="display: flex; gap: 14px; margin-top: 4px; font-size: ${el.fontSize}; color: ${el.color};">`;
+              if (labProfile.phone) textHTML += `<span>📞 ${labProfile.phone}</span>`;
+              if (labProfile.phone2) textHTML += `<span>📞 ${labProfile.phone2}</span>`;
+              textHTML += `</div>`;
+            }
+            break;
+        }
+      });
+
+      let logoHTML = '';
+      if (logoEnabled) {
+        logoHTML = `<div style="width: ${logoSize}; height: ${logoSize}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          ${labProfile.labLogo
+            ? `<img src="${labProfile.labLogo}" alt="Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
+            : `<div style="width: 72px; height: 72px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 11px; text-align: center;">Lab<br/>Logo</div>`
+          }
+        </div>`;
+      }
+
+      headerHTML = `
+        <div style="border-bottom: ${borderStyle}; padding-bottom: ${SP.headerPb};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            ${logoPosition === 'left' ? logoHTML : ''}
+            <div style="flex: 1;">${textHTML}</div>
+            ${logoPosition === 'right' ? logoHTML : ''}
+          </div>
+        </div>`;
+    }
   } else if (!isLetterhead && template !== 'unique') {
+    // ===== LEGACY TEMPLATE-BASED HEADER =====
     const borderColor = template === 'modern' ? '#2563eb' : '#1e293b';
     const titleColor = template === 'modern' ? '#1e40af' : '#0f172a';
     headerHTML = `
@@ -265,7 +331,50 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   // Footer uses position:fixed to pin to page bottom on EVERY page (including last)
   // When onlyReport is true, skip footer entirely
   let footerHTML = '';
-  if (!onlyReport && !isLetterhead && template !== 'unique') {
+  if (onlyReport) {
+    footerHTML = '';
+  } else if (pdfLayoutConfig && pdfLayoutConfig.footer) {
+    // ===== DYNAMIC FOOTER from pdfLayoutConfig =====
+    const fc = pdfLayoutConfig.footer;
+    if (fc.enabled) {
+      const borderStyle = fc.borderStyle === 'solid' ? `1px solid ${fc.borderColor}`
+        : fc.borderStyle === 'double' ? `3px double ${fc.borderColor}`
+        : 'none';
+
+      const enabledElements = fc.elements.filter(e => e.enabled);
+      const signatoryEls = enabledElements.filter(e => ['labAssistant', 'authorizedSignatory', 'labTechnician'].includes(e.id));
+      const footerTextEl = enabledElements.find(e => e.id === 'footerText');
+
+      let signatoryHTML = '';
+      if (signatoryEls.length > 0) {
+        signatoryHTML = `<div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; margin-bottom: 10px;">`;
+        signatoryEls.forEach(el => {
+          if (el.id === 'labAssistant') {
+            signatoryHTML += `<div style="text-align: left;">${labProfile.labAssistant ? `<p style="font-weight: 700; color: ${el.color}; font-size: ${el.fontSize}; margin: 0;">Lab Assistant</p><p style="font-size: ${el.fontSize}; color: #475569; margin: 2px 0 0 0;">${labProfile.labAssistant}</p>` : ''}</div>`;
+          } else if (el.id === 'authorizedSignatory') {
+            signatoryHTML += `<div style="text-align: center;"><p style="font-size: ${el.fontSize}; font-weight: 700; color: ${el.color}; text-transform: uppercase; margin: 0;">Authorized Signatory</p></div>`;
+          } else if (el.id === 'labTechnician') {
+            signatoryHTML += `<div style="text-align: right;">${labProfile.labTechnician ? `<p style="font-weight: 700; color: ${el.color}; font-size: ${el.fontSize}; margin: 0;">Lab Technician</p><p style="font-size: ${el.fontSize}; color: #475569; margin: 2px 0 0 0;">${labProfile.labTechnician}</p>` : ''}</div>`;
+          }
+        });
+        signatoryHTML += `</div>`;
+      }
+
+      let footerTextHTML = '';
+      if (footerTextEl) {
+        footerTextHTML = `<div style="text-align: center; font-size: ${footerTextEl.fontSize}; color: ${footerTextEl.color};">${labProfile.footerText || '*** End of Report ***'}</div>`;
+      }
+
+      footerHTML = `
+      <div class="fixed-footer">
+        <div style="padding-top: ${SP.footerPt}; border-top: ${borderStyle};">
+          ${signatoryHTML}
+          ${footerTextHTML}
+        </div>
+      </div>`;
+    }
+  } else if (!isLetterhead && template !== 'unique') {
+    // ===== LEGACY TEMPLATE-BASED FOOTER =====
     footerHTML = `
     <div class="fixed-footer">
       <div style="padding-top: ${SP.footerPt}; border-top: 1px solid #e2e8f0;">
@@ -296,8 +405,27 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   // --- Watermark / Background Logo ---
   // Use dedicated watermarkLogo if set, otherwise fall back to labLogo
   // When onlyReport is true, skip watermark entirely
+  // When pdfLayoutConfig is present, respect its watermark settings
   const watermarkSrc = labProfile.watermarkLogo || labProfile.labLogo;
-  const showWatermark = !onlyReport && watermarkSrc;
+  let showWatermark = !onlyReport && watermarkSrc;
+  let watermarkOpacity = 0.10;
+  let watermarkSizeCSS = '50%';
+  let watermarkPositionCSS = 'center';
+  if (pdfLayoutConfig && pdfLayoutConfig.background) {
+    const bg = pdfLayoutConfig.background;
+    showWatermark = !onlyReport && bg.watermarkEnabled && watermarkSrc;
+    watermarkOpacity = bg.watermarkOpacity || 0.10;
+    watermarkSizeCSS = bg.watermarkSize || '50%';
+    // Map position to CSS align/justify values
+    const posMap = {
+      'center': { ai: 'center', jc: 'center' },
+      'top-left': { ai: 'flex-start', jc: 'flex-start' },
+      'top-right': { ai: 'flex-start', jc: 'flex-end' },
+      'bottom-left': { ai: 'flex-end', jc: 'flex-start' },
+      'bottom-right': { ai: 'flex-end', jc: 'flex-end' },
+    };
+    watermarkPositionCSS = bg.watermarkPosition || 'center';
+  }
 
   // =============================================
   // Layout strategy:
@@ -308,12 +436,46 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
   //   - Content has bottom padding so it never overlaps the footer
   // =============================================
 
+  // --- Resolve global font family for pdfLayoutConfig ---
+  let fontFamilyCSS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  let googleFontLink = '';
+  let bodyTextColor = '#1e293b';
+  let pageBackground = '#fff';
+  let accentColor = template === 'modern' ? '#2563eb' : '#1e293b';
+
+  if (pdfLayoutConfig && pdfLayoutConfig.global) {
+    const g = pdfLayoutConfig.global;
+    const fontDef = FONT_FAMILIES.find(f => f.id === g.fontFamily);
+    if (fontDef) {
+      fontFamilyCSS = fontDef.css;
+      if (fontDef.googleFont) {
+        googleFontLink = `<link href="https://fonts.googleapis.com/css2?family=${fontDef.googleFont.replace(/ /g, '+')}:wght@400;500;600;700;800&display=swap" rel="stylesheet">`;
+      }
+    }
+    bodyTextColor = g.bodyTextColor || '#1e293b';
+    accentColor = g.accentColor || '#2563eb';
+  }
+  if (pdfLayoutConfig && pdfLayoutConfig.background) {
+    pageBackground = pdfLayoutConfig.background.pageBackground || '#fff';
+  }
+
+  // --- Watermark positioning ---
+  const wmPosMap = {
+    'center': { ai: 'center', jc: 'center' },
+    'top-left': { ai: 'flex-start', jc: 'flex-start' },
+    'top-right': { ai: 'flex-start', jc: 'flex-end' },
+    'bottom-left': { ai: 'flex-end', jc: 'flex-start' },
+    'bottom-right': { ai: 'flex-end', jc: 'flex-end' },
+  };
+  const wmPos = wmPosMap[watermarkPositionCSS] || wmPosMap['center'];
+
   // --- Full HTML Document ---
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Report - ${order.patient_name}</title>
+  ${googleFontLink}
   <style>
     @page {
       size: A4;
@@ -324,10 +486,10 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       height: 100%;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: ${fontFamilyCSS};
       font-size: 12px;
-      color: #1e293b;
-      background: #fff;
+      color: ${bodyTextColor};
+      background: ${pageBackground};
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -337,15 +499,15 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: ${wmPos.ai};
+      justify-content: ${wmPos.jc};
       pointer-events: none;
-      opacity: 0.10;
+      opacity: ${watermarkOpacity};
       z-index: 0;
     }
     .watermark img {
-      width: 50%;
-      max-height: 50%;
+      width: ${watermarkSizeCSS};
+      max-height: ${watermarkSizeCSS};
       object-fit: contain;
     }
 
