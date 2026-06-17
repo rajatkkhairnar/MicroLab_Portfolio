@@ -50,7 +50,10 @@ import {
   LogOut,
   Calendar,
   Cpu,
-  Palette
+  Palette,
+  ArrowUp,
+  ArrowDown,
+  GripVertical
 } from 'lucide-react';
 import { DEFAULT_TESTS } from '../utils/defaultTests';
 import { TEST_CATALOG } from '../utils/testCatalog';
@@ -373,6 +376,68 @@ const Settings = () => {
       if (updated[testName]) {
         const testOverrides = { ...updated[testName] };
         delete testOverrides[paramName];
+        if (Object.keys(testOverrides).length === 0) {
+          delete updated[testName];
+        } else {
+          updated[testName] = testOverrides;
+        }
+      }
+      return updated;
+    });
+  };
+
+  // --- Handlers: Parameter Reordering ---
+  // Get the current ordered list of parameter names for a test
+  const getOrderedParams = (testName) => {
+    const catalogParams = TEST_CATALOG[testName] || [];
+    const customOrder = testParamSettings[testName]?.__paramOrder__;
+    if (Array.isArray(customOrder) && customOrder.length > 0) {
+      // Sort catalog params by custom order, unrecognized ones go to end
+      return [...catalogParams].sort((a, b) => {
+        const idxA = customOrder.indexOf(a.name);
+        const idxB = customOrder.indexOf(b.name);
+        const posA = idxA === -1 ? customOrder.length : idxA;
+        const posB = idxB === -1 ? customOrder.length : idxB;
+        return posA - posB;
+      });
+    }
+    return catalogParams;
+  };
+
+  // Move a parameter up or down in the list
+  const moveParam = (testName, paramName, direction) => {
+    const catalogParams = TEST_CATALOG[testName] || [];
+    const currentOrder = testParamSettings[testName]?.__paramOrder__
+      || catalogParams.map(p => p.name);
+    const ordered = [...currentOrder];
+    const idx = ordered.indexOf(paramName);
+    if (idx === -1) return;
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= ordered.length) return;
+    // Swap
+    [ordered[idx], ordered[newIdx]] = [ordered[newIdx], ordered[idx]];
+    setTestParamSettings(prev => ({
+      ...prev,
+      [testName]: {
+        ...(prev[testName] || {}),
+        __paramOrder__: ordered
+      }
+    }));
+  };
+
+  // Check if parameter order has been customized
+  const hasCustomParamOrder = (testName) => {
+    const order = testParamSettings[testName]?.__paramOrder__;
+    return Array.isArray(order) && order.length > 0;
+  };
+
+  // Reset parameter order to default catalog order
+  const resetParamOrder = (testName) => {
+    setTestParamSettings(prev => {
+      const updated = { ...prev };
+      if (updated[testName]) {
+        const testOverrides = { ...updated[testName] };
+        delete testOverrides.__paramOrder__;
         if (Object.keys(testOverrides).length === 0) {
           delete updated[testName];
         } else {
@@ -958,7 +1023,7 @@ const Settings = () => {
                                 >
                                   {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                                   {catalogParams.length}
-                                  {hasCustomizations && !isExpanded && ' âœŽ'}
+                                  {hasCustomizations && !isExpanded && ' ✍️'}
                                 </button>
                               )}
                             </td>
@@ -971,15 +1036,28 @@ const Settings = () => {
                                 <div className="bg-slate-900/80 border-t border-b border-slate-600 px-6 py-4">
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="text-sm font-bold text-blue-400 uppercase tracking-wide">
-                                      Parameters â€” {test.name}
+                                      Parameters — {test.name}
                                     </h4>
-                                    <span className="text-xs text-slate-500">
-                                      Toggle parameters on/off and edit reference ranges
-                                    </span>
+                                    <div className="flex items-center gap-3">
+                                      {hasCustomParamOrder(test.name) && (
+                                        <button
+                                          onClick={() => resetParamOrder(test.name)}
+                                          className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                                          title="Reset to default order"
+                                        >
+                                          <RotateCcw size={12} />
+                                          Reset Order
+                                        </button>
+                                      )}
+                                      <span className="text-xs text-slate-500">
+                                        Use arrows to set print order
+                                      </span>
+                                    </div>
                                   </div>
                                   <table className="w-full text-sm border-collapse">
                                     <thead>
                                       <tr className="text-slate-500 text-xs uppercase border-b border-slate-700">
+                                        <th className="py-2 px-1 w-16 text-center">Order</th>
                                         <th className="py-2 px-2 w-10 text-center">On</th>
                                         <th className="py-2 px-2 text-left">Parameter Name</th>
                                         <th className="py-2 px-2 w-20 text-left">Unit</th>
@@ -988,16 +1066,40 @@ const Settings = () => {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
-                                      {catalogParams.map((param, pIdx) => {
+                                      {getOrderedParams(test.name).map((param, pIdx) => {
                                         const isEnabled = getParamSetting(test.name, param.name, 'enabled');
                                         const currentRef = getParamSetting(test.name, param.name, 'ref');
                                         const isCustom = testParamSettings[test.name]?.[param.name] !== undefined;
+                                        const orderedParams = getOrderedParams(test.name);
+                                        const isFirst = pIdx === 0;
+                                        const isLast = pIdx === orderedParams.length - 1;
 
                                         return (
                                           <tr 
-                                            key={pIdx} 
+                                            key={param.name} 
                                             className={`transition-colors ${isEnabled ? 'hover:bg-slate-800/50' : 'opacity-40'}`}
                                           >
+                                            <td className="py-1 px-1 text-center">
+                                              <div className="flex items-center justify-center gap-0.5">
+                                                <button
+                                                  onClick={() => moveParam(test.name, param.name, -1)}
+                                                  disabled={isFirst}
+                                                  className={`p-0.5 rounded transition-colors ${isFirst ? 'text-slate-700 cursor-not-allowed' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-700'}`}
+                                                  title="Move up"
+                                                >
+                                                  <ArrowUp size={13} />
+                                                </button>
+                                                <GripVertical size={12} className="text-slate-700" />
+                                                <button
+                                                  onClick={() => moveParam(test.name, param.name, 1)}
+                                                  disabled={isLast}
+                                                  className={`p-0.5 rounded transition-colors ${isLast ? 'text-slate-700 cursor-not-allowed' : 'text-slate-500 hover:text-blue-400 hover:bg-slate-700'}`}
+                                                  title="Move down"
+                                                >
+                                                  <ArrowDown size={13} />
+                                                </button>
+                                              </div>
+                                            </td>
                                             <td className="py-2 px-2 text-center">
                                               <input
                                                 type="checkbox"
@@ -1010,7 +1112,7 @@ const Settings = () => {
                                               {param.name}
                                             </td>
                                             <td className="py-2 px-2 text-slate-500">
-                                              {param.unit || 'â€”'}
+                                              {param.unit || '—'}
                                             </td>
                                             <td className="py-2 px-2">
                                               <input

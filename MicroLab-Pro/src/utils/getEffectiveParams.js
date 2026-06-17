@@ -6,16 +6,18 @@ import { TEST_CATALOG } from './testCatalog';
  * 
  * - Respects enabled/disabled per parameter
  * - Uses custom reference ranges if set
+ * - Respects custom parameter ordering via __paramOrder__
  * 
  * @param {string} testName - Name of the test (e.g. "Complete Blood Count (CBC)")
- * @param {Object} testParamSettings - User overrides from settings { testName: { paramName: { enabled, ref } } }
+ * @param {Object} testParamSettings - User overrides from settings { testName: { paramName: { enabled, ref }, __paramOrder__: [...] } }
  * @returns {Array} - Filtered array of { name, unit, ref, type } objects
  */
 export function getEffectiveParams(testName, testParamSettings = {}) {
   const defaultParams = TEST_CATALOG[testName] || [];
   const overrides = testParamSettings[testName] || {};
+  const paramOrder = overrides.__paramOrder__;
 
-  return defaultParams
+  let params = defaultParams
     .filter(param => {
       // If user explicitly disabled this parameter, exclude it
       const override = overrides[param.name];
@@ -30,4 +32,18 @@ export function getEffectiveParams(testName, testParamSettings = {}) {
         ref: (override && override.ref !== undefined) ? override.ref : param.ref,
       };
     });
+
+  // Apply custom ordering if present
+  if (Array.isArray(paramOrder) && paramOrder.length > 0) {
+    params.sort((a, b) => {
+      const idxA = paramOrder.indexOf(a.name);
+      const idxB = paramOrder.indexOf(b.name);
+      // Parameters not in the order array go to the end
+      const posA = idxA === -1 ? paramOrder.length : idxA;
+      const posB = idxB === -1 ? paramOrder.length : idxB;
+      return posA - posB;
+    });
+  }
+
+  return params;
 }
