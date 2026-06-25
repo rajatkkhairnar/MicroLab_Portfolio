@@ -8,6 +8,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useLicense } from '../context/LicenseContext';
 import { 
   LayoutDashboard, FlaskConical, Users, 
   PackageSearch, IndianRupee, Settings, LogOut, Microscope, ClipboardList 
@@ -15,6 +16,7 @@ import {
 
 const Sidebar = () => {
   const { user, logout } = useUser(); // <--- Get current user
+  const { licenseInfo } = useLicense();
 
   // Define ALL items
   const allNavItems = [
@@ -43,8 +45,11 @@ const Sidebar = () => {
           <Microscope size={24} className="text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight">MicroLab Pro</h1>
+          <h1 className="text-xl font-bold tracking-tight">Laxio</h1>
           <p className="text-xs text-slate-400 capitalize">{user?.role || 'Guest'} Mode</p>
+          {user?.role === 'owner' && licenseInfo?.plan && (
+            <p className="text-xs text-blue-400 capitalize mt-0.5">{licenseInfo.plan} Plan</p>
+          )}
         </div>
       </div>
 

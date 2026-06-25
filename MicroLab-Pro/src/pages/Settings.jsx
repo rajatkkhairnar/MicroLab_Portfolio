@@ -549,6 +549,7 @@ const Settings = () => {
             <span className="font-medium">Test Settings</span>
           </button>
 
+          {/* Software Update tab — FROZEN (uncomment to re-enable)
           {isAdmin && (
             <button
               onClick={() => setActiveTab('update')}
@@ -560,6 +561,7 @@ const Settings = () => {
               <span className="font-medium">Software Update</span>
             </button>
           )}
+          */}
 
           {isAdmin && (
             <button
@@ -1154,8 +1156,8 @@ const Settings = () => {
             </div>
           )}
 
-          {/* SECTION 4: SOFTWARE UPDATE (Admin Only) */}
-          {activeTab === 'update' && isAdmin && (
+          {/* SECTION 4: SOFTWARE UPDATE — FROZEN (change false to activeTab === 'update' to re-enable) */}
+          {false && isAdmin && (
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl animate-in fade-in slide-in-from-right-4 duration-300">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Download className="text-blue-400" /> Software Update
@@ -1283,6 +1285,7 @@ const Settings = () => {
               </div>
             </div>
           )}
+
 
           {/* SECTION 5: LICENSE (Admin Only) */}
           {activeTab === 'license' && isAdmin && (

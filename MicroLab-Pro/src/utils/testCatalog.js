@@ -23,7 +23,6 @@ export const TEST_CATALOG = {
     { name: 'Neutrophils', unit: '%', ref: '40 - 70', type: 'number' },
     { name: 'Lymphocytes', unit: '%', ref: '20 - 40', type: 'number' },
     { name: 'Mid', unit: '%', ref: '3 - 10', type: 'number' },
-    { name: 'Granulocytes', unit: '%', ref: '50 - 70', type: 'number' },
     { name: 'Eosinophils', unit: '%', ref: '1 - 6', type: 'number' },
     { name: 'Monocytes', unit: '%', ref: '2 - 10', type: 'number' },
     { name: 'Basophils', unit: '%', ref: '0 - 1', type: 'number' },

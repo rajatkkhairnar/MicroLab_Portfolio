@@ -45,7 +45,9 @@ export const DEFAULT_PDF_LAYOUT = {
   global: {
     fontFamily: 'system',       // 'system' | 'inter' | 'roboto' | 'serif' | 'mono'
     accentColor: '#2563eb',
-    bodyTextColor: '#1e293b'
+    bodyTextColor: '#1e293b',
+    abnormalHighColor: '#dc2626',  // Color for values above reference range
+    abnormalLowColor: '#2563eb',   // Color for values below reference range
   }
 };
 

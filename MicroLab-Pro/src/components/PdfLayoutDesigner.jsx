@@ -35,6 +35,7 @@ import {
   ArrowUp,
   ArrowDown,
   Settings2,
+  AlertTriangle,
 } from 'lucide-react';
 import { DEFAULT_PDF_LAYOUT, getDefaultPdfLayout, FONT_FAMILIES } from '../utils/defaultPdfLayout';
 
@@ -473,19 +474,27 @@ const PdfLayoutDesigner = ({ layoutConfig, onSave, saving }) => {
                 <span style={{ width: '16%' }}>Unit</span>
                 <span style={{ width: '22%' }}>Ref. Range</span>
               </div>
-              {/* Placeholder rows */}
+              {/* Placeholder rows — some show abnormal high/low colors */}
               {[
-                ['Haemoglobin', '14.2', 'g/dL', '13.0 - 17.0'],
-                ['Total WBC Count', '7,200', '/cumm', '4,000 - 11,000'],
-                ['Neutrophils', '62', '%', '40 - 75'],
-                ['Lymphocytes', '30', '%', '20 - 45'],
-                ['Platelet Count', '2.5', 'L/cumm', '1.5 - 4.0'],
-                ['RBC Count', '5.1', 'M/cumm', '4.5 - 5.5'],
-                ['PCV', '42', '%', '40 - 50'],
-              ].map(([name, val, unit, ref], i) => (
+                ['Haemoglobin', '14.2', 'g/dL', '13.0 - 17.0', null],
+                ['Total WBC Count', '7,200', '/cumm', '4,000 - 11,000', null],
+                ['Neutrophils', '62', '%', '40 - 75', null],
+                ['Lymphocytes', '18 *', '%', '20 - 45', 'low'],
+                ['Platelet Count', '5.2 *', 'L/cumm', '1.5 - 4.0', 'high'],
+                ['RBC Count', '5.1', 'M/cumm', '4.5 - 5.5', null],
+                ['PCV', '42', '%', '40 - 50', null],
+              ].map(([name, val, unit, ref, abnormal], i) => (
                 <div key={i} style={{ display: 'flex', fontSize: '4px', padding: '1px 0', color: config.global.bodyTextColor }}>
                   <span style={{ width: '42%' }}>{name}</span>
-                  <span style={{ width: '20%', fontWeight: 700 }}>{val}</span>
+                  <span style={{
+                    width: '20%',
+                    fontWeight: 700,
+                    color: abnormal === 'high'
+                      ? (config.global.abnormalHighColor || '#dc2626')
+                      : abnormal === 'low'
+                        ? (config.global.abnormalLowColor || '#2563eb')
+                        : config.global.bodyTextColor
+                  }}>{val}</span>
                   <span style={{ width: '16%', color: '#64748b' }}>{unit}</span>
                   <span style={{ width: '22%', color: '#64748b' }}>{ref}</span>
                 </div>
@@ -803,6 +812,31 @@ const PdfLayoutDesigner = ({ layoutConfig, onSave, saving }) => {
                   Body Text
                 </label>
                 {colorInput(config.global.bodyTextColor, (v) => updateConfig('global.bodyTextColor', v))}
+              </div>
+            </div>
+
+            {/* Abnormal Value Colors */}
+            <div className="bg-slate-800/50 rounded-lg px-4 py-4 border border-slate-700/50 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle size={14} className="text-amber-400" />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Abnormal Value Colors</span>
+              </div>
+              <p className="text-xs text-slate-500 -mt-2">Colors used for test values that fall outside the reference range</p>
+
+              {/* High (Above Range) Color */}
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-slate-500 w-28 flex-shrink-0">
+                  ↑ Above Range
+                </label>
+                {colorInput(config.global.abnormalHighColor || '#dc2626', (v) => updateConfig('global.abnormalHighColor', v))}
+              </div>
+
+              {/* Low (Below Range) Color */}
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-slate-500 w-28 flex-shrink-0">
+                  ↓ Below Range
+                </label>
+                {colorInput(config.global.abnormalLowColor || '#2563eb', (v) => updateConfig('global.abnormalLowColor', v))}
               </div>
             </div>
           </div>

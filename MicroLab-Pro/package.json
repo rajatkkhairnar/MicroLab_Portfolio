@@ -1,7 +1,7 @@
 {
   "name": "microlab-pro",
-  "productName": "MicroLab-Pro",
-  "version": "3.4.1",
+  "productName": "Laxio",
+  "version": "3.4.2",
   "type": "module",
   "description": "Offline-first Laboratory Information Management System",
   "main": "electron/main.cjs",
@@ -41,8 +41,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.microlab.pro",
-    "productName": "MicroLab Pro",
+    "appId": "com.laxio.app",
+    "productName": "Laxio",
     "publish": [
       {
         "provider": "github",

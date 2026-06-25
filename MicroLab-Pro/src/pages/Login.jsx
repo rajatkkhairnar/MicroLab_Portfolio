@@ -44,11 +44,11 @@ const Login = () => {
             <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center mb-6">
               <Microscope size={32} className="text-white" />
             </div>
-            <h1 className="text-3xl font-bold">MicroLab Pro</h1>
+            <h1 className="text-3xl font-bold">Laxio</h1>
             <p className="text-blue-100 mt-2">Next-Gen Laboratory Management</p>
           </div>
           <div className="relative z-10 text-sm text-blue-200">
-            © 2026 MicroLab Systems. <br/> Offline-First Secure Architecture.
+            © 2026 Laxio Systems. <br/> Offline-First Secure Architecture.
           </div>
           
           {/* Decorative Circles */}
@@ -114,7 +114,7 @@ const Login = () => {
               <div>
                 <h3 className="text-lg font-bold text-slate-800">License Expired</h3>
                 <p className="text-sm text-slate-600 mt-1">
-                  Your MicroLab Pro license has expired. You can view existing data (patients, reports, history) but cannot add, edit, or delete records until you renew.
+                  Your Laxio license has expired. You can view existing data (patients, reports, history) but cannot add, edit, or delete records until you renew.
                 </p>
               </div>
             </div>

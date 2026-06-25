@@ -18,7 +18,7 @@ const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron
 const path = require('path');
 const fs = require('fs');
 const { db, initDatabase } = require('./database.cjs');
-const { autoUpdater } = require('electron-updater');
+// const { autoUpdater } = require('electron-updater'); // FROZEN — auto-update disabled
 const license = require('./license.cjs');
 
 // Initialize DB schema on startup
@@ -32,7 +32,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: width,
     height: height,
-    title: 'MicroLab Pro',
+    title: 'Laxio',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -854,116 +854,27 @@ ipcMain.handle('print-report', async (_, { htmlContent, patientName }) => {
   }
 });
 
-// --- 10. Auto-Update (electron-updater) ---
+// --- 10. Auto-Update — FROZEN ---
+// The auto-update feature is temporarily disabled.
+// All autoUpdater initialization, event listeners, and download/install logic
+// have been disabled. IPC handlers return safe stub responses.
 
-// Disable auto-download — we want the user to trigger it manually
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+// autoUpdater.autoDownload = false;
+// autoUpdater.autoInstallOnAppQuit = true;
 
-// Enable logging for diagnostics
-autoUpdater.logger = require('electron').app ? console : console;
-autoUpdater.logger.transports = undefined; // Avoid crash if logger API differs
-
-// Configure GitHub token for private repo access.
-// The token is read from the GH_TOKEN environment variable.
-// For built apps, it can also be baked into the app-update.yml at build time.
-if (process.env.GH_TOKEN) {
-  autoUpdater.requestHeaders = { Authorization: `token ${process.env.GH_TOKEN}` };
-}
-
-// Allow update checks in dev mode for testing purposes
-// Set the FORCE_DEV_UPDATE_CONFIG env variable to enable this
-if (!app.isPackaged && process.env.FORCE_DEV_UPDATE_CONFIG) {
-  autoUpdater.forceDevUpdateConfig = true;
-}
-
-// Forward update events to the renderer
-function sendUpdateStatus(channel, data) {
-  if (mainWindow && mainWindow.webContents) {
-    mainWindow.webContents.send(channel, data);
-  }
-}
-
-autoUpdater.on('checking-for-update', () => {
-  sendUpdateStatus('update-status', { status: 'checking' });
-});
-
-autoUpdater.on('update-available', (info) => {
-  sendUpdateStatus('update-status', {
-    status: 'available',
-    version: info.version,
-    releaseDate: info.releaseDate
-  });
-});
-
-autoUpdater.on('update-not-available', (info) => {
-  sendUpdateStatus('update-status', {
-    status: 'up-to-date',
-    version: info.version
-  });
-});
-
-autoUpdater.on('download-progress', (progress) => {
-  sendUpdateStatus('update-status', {
-    status: 'downloading',
-    percent: Math.round(progress.percent),
-    transferred: progress.transferred,
-    total: progress.total
-  });
-});
-
-autoUpdater.on('update-downloaded', (info) => {
-  sendUpdateStatus('update-status', {
-    status: 'downloaded',
-    version: info.version
-  });
-});
-
-autoUpdater.on('error', (err) => {
-  console.error('Auto-updater error:', err);
-  let userMessage = err.message || 'Update check failed';
-  // Provide a more helpful message for common errors
-  if (userMessage.includes('404') || userMessage.includes('Not Found')) {
-    userMessage = 'No releases found on GitHub. Please create a release first (see README).';
-  } else if (userMessage.includes('not packed')) {
-    userMessage = 'Update check is unavailable in development mode.';
-  }
-  sendUpdateStatus('update-status', {
-    status: 'error',
-    message: userMessage
-  });
-});
-
-// IPC: Trigger manual update check
+// IPC: Trigger manual update check — returns frozen message
 ipcMain.handle('check-for-update', async () => {
-  try {
-    // Guard: In dev mode without forced config, return a friendly message
-    if (!app.isPackaged && !autoUpdater.forceDevUpdateConfig) {
-      return { 
-        success: false, 
-        error: 'Update check is unavailable in development mode. Build the app first or set FORCE_DEV_UPDATE_CONFIG=true.' 
-      };
-    }
-    const result = await autoUpdater.checkForUpdates();
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  return { success: false, error: 'Software update feature is currently unavailable.' };
 });
 
-// IPC: Download the available update
+// IPC: Download the available update — returns frozen message
 ipcMain.handle('download-update', async () => {
-  try {
-    await autoUpdater.downloadUpdate();
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  return { success: false, error: 'Software update feature is currently unavailable.' };
 });
 
-// IPC: Quit and install the downloaded update
+// IPC: Quit and install — no-op
 ipcMain.handle('install-update', () => {
-  autoUpdater.quitAndInstall(false, true);
+  return { success: false, error: 'Software update feature is currently unavailable.' };
 });
 
 // IPC: Get current app version
@@ -1069,7 +980,7 @@ function createLicenseWindow(reason) {
     resizable: false,
     frame: false,
     center: true,
-    title: 'MicroLab Pro — Activation',
+    title: 'Laxio — Activation',
     webPreferences: {
       preload: path.join(__dirname, 'licensePreload.cjs'),
       contextIsolation: true,

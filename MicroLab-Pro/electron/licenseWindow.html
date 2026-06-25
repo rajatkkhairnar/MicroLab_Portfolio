@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MicroLab Pro — License Activation</title>
+  <title>Laxio — License Activation</title>
   <style>
     * {
       margin: 0;
@@ -241,13 +241,13 @@
     <!-- Header -->
     <div class="header">
       <div class="logo-icon">🔬</div>
-      <h1>MicroLab Pro</h1>
+      <h1>Laxio</h1>
       <p>License Activation Required</p>
     </div>
 
     <!-- Reason Banner (set dynamically via IPC) -->
     <div id="reasonBanner" class="reason-banner info show">
-      Enter your license key to activate MicroLab Pro on this machine.
+      Enter your license key to activate Laxio on this machine.
     </div>
 
     <!-- Error Message -->
@@ -326,7 +326,7 @@
 
         if (result.success) {
           // Success — main process will close this window and open the app
-          reasonBanner.textContent = '✅ License activated! Starting MicroLab Pro...';
+          reasonBanner.textContent = '✅ License activated! Starting Laxio...';
           reasonBanner.className = 'reason-banner info show';
         } else {
           showError(result.error || 'Activation failed. Please check your key and try again.');
@@ -358,7 +358,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       window.licenseAPI.onSetReason((reason) => {
         const messages = {
-          'not_activated': 'Enter your license key to activate MicroLab Pro on this machine.',
+          'not_activated': 'Enter your license key to activate Laxio on this machine.',
           'license_expired': 'Your license has expired. Enter a new key or contact the vendor to renew.',
           'license_suspended': 'Your license has been suspended. Contact support for assistance.',
           'activation_revoked': 'Your activation has been revoked. Re-enter your key or contact support.',

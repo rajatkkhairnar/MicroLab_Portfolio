@@ -51,29 +51,44 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
       const refLower = param.ref.toLowerCase().trim();
       const obsLower = observedValue.toString().toLowerCase().trim();
       if (['non-reactive', 'negative', 'nil'].includes(refLower)) {
-        return !['non-reactive', 'negative', 'nil'].includes(obsLower);
+        return !['non-reactive', 'negative', 'nil'].includes(obsLower) ? 'high' : false;
       }
       return false;
     }
 
     const ref = param.ref;
     let match = ref.match(/^(?:<|UP\s+TO)\s*([\d.]+)/i);
-    if (match) return val > parseFloat(match[1]);
+    if (match) return val > parseFloat(match[1]) ? 'high' : false;
 
     match = ref.match(/^>\s*([\d.]+)/i);
-    if (match) return val < parseFloat(match[1]);
+    if (match) return val < parseFloat(match[1]) ? 'low' : false;
 
     match = ref.match(/([\d.]+)\s*(?:TO|-|–)\s*([\d.]+)/i);
-    if (match) return val < parseFloat(match[1]) || val > parseFloat(match[2]);
+    if (match) {
+      if (val < parseFloat(match[1])) return 'low';
+      if (val > parseFloat(match[2])) return 'high';
+      return false;
+    }
 
     match = ref.match(/([\d.]+)\s*(?:TO|-|–)\s*([\d.]+).*?([\d.]+)\s*(?:TO|-|–)\s*([\d.]+)/i);
     if (match) {
       const low = Math.min(parseFloat(match[1]), parseFloat(match[3]));
       const high = Math.max(parseFloat(match[2]), parseFloat(match[4]));
-      return val < low || val > high;
+      if (val < low) return 'low';
+      if (val > high) return 'high';
+      return false;
     }
 
     return false;
+  };
+
+  // Resolve abnormal direction to user-configured color
+  const abnormalHighColor = pdfLayoutConfig?.global?.abnormalHighColor || '#dc2626';
+  const abnormalLowColor = pdfLayoutConfig?.global?.abnormalLowColor || '#2563eb';
+  const getAbnormalColor = (direction) => {
+    if (direction === 'high') return abnormalHighColor;
+    if (direction === 'low') return abnormalLowColor;
+    return '#0f172a';
   };
 
   // =============================================
@@ -229,7 +244,7 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
     },
     {
       label: 'Differential WBC Count',
-      params: ['Neutrophils', 'Lymphocytes', 'Mid', 'Granulocytes', 'Eosinophils', 'Monocytes', 'Basophils']
+      params: ['Neutrophils', 'Lymphocytes', 'Mid', 'Eosinophils', 'Monocytes', 'Basophils']
     },
     {
       label: 'Total RBC Count',
@@ -249,57 +264,134 @@ export function generateReportHTML({ order, results, labProfile, template = 'mod
     const isCBC = testName === 'Complete Blood Count (CBC)' || testName.toLowerCase().includes('cbc');
 
     if (isCBC) {
-      // Render CBC in strict section order from CBC_SECTIONS
       const testResults = results[testName];
+      const hasCustomOrder = testParamSettings[testName]?.__paramOrder__;
 
-      CBC_SECTIONS.forEach(section => {
-        // Section header row
-        if (section.label) {
-          rowsHTML += `<tr style="background: rgba(248,250,252,0.8); border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-            <td colspan="4" style="padding: 6px; font-weight: 700; text-align: center; color: #1e293b; text-transform: uppercase; letter-spacing: 2px; font-size: ${TXT.cbcSub};">${section.label}</td>
-          </tr>`;
-        }
+      // Differential WBC params that contribute to the Total row
+      const DIFF_WBC_PARAMS = ['Neutrophils', 'Lymphocytes', 'Mid', 'Eosinophils', 'Monocytes', 'Basophils'];
 
-        // Parameter rows in defined order
-        section.params.forEach(paramName => {
-          const value = testResults[paramName];
-          if (value === undefined && value !== '') return; // skip if not entered
-          const abnormal = isAbnormal(testName, paramName, value);
-
-          rowsHTML += `
-            <tr>
-              <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${paramName}</td>
-              <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
-              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, paramName)}</td>
-              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, paramName)}</td>
-            </tr>`;
+      // Helper: build the TOTAL row for differential WBC count
+      const buildDiffTotalRow = (paramNames) => {
+        let diffTotal = 0;
+        let hasDiffValues = false;
+        paramNames.forEach(pName => {
+          if (!DIFF_WBC_PARAMS.includes(pName)) return;
+          const val = parseFloat(testResults[pName]);
+          if (!isNaN(val)) {
+            diffTotal += val;
+            hasDiffValues = true;
+          }
         });
-      });
+        if (!hasDiffValues) return '';
+        // Round to avoid floating point artifacts (e.g. 99.99999999)
+        const displayTotal = parseFloat(diffTotal.toFixed(1));
+        return `
+          <tr>
+            <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; text-transform: uppercase;">Total</td>
+            <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: #0f172a;">${displayTotal}</td>
+            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};"></td>
+            <td style="padding: ${SP.rowPad};"></td>
+          </tr>`;
+      };
 
-      // Catch any parameters not in CBC_SECTIONS (future-proofing)
-      const knownParams = CBC_SECTIONS.flatMap(s => s.params);
-      Object.entries(testResults).forEach(([param, value]) => {
-        if (!knownParams.includes(param)) {
-          const abnormal = isAbnormal(testName, param, value);
+      if (hasCustomOrder) {
+        // Custom order set by user — render in effective params order (flat, no CBC sections)
+        const effectiveParams = getEffectiveParams(testName, testParamSettings);
+
+        // Find the index of the last differential param in the effective order
+        let lastDiffIdx = -1;
+        effectiveParams.forEach((param, idx) => {
+          if (DIFF_WBC_PARAMS.includes(param.name)) lastDiffIdx = idx;
+        });
+
+        effectiveParams.forEach((param, idx) => {
+          const value = testResults[param.name];
+          if (value === undefined && value !== '') return; // skip if not entered
+          const abnormal = isAbnormal(testName, param.name, value);
+          const isLastDiff = (idx === lastDiffIdx);
+
           rowsHTML += `
             <tr>
-              <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
-              <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
-              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
-              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
+              <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param.name}</td>
+              <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${getAbnormalColor(abnormal)};${isLastDiff ? ' border-bottom: 1px solid #1e293b;' : ''}">${value}${abnormal ? ' *' : ''}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${param.unit || ''}</td>
+              <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${param.ref || '-'}</td>
             </tr>`;
-        }
-      });
+
+          // Insert Total row right after the last differential param
+          if (isLastDiff) {
+            rowsHTML += buildDiffTotalRow(effectiveParams.map(p => p.name));
+          }
+        });
+      } else {
+        // Default CBC rendering — use strict section grouping from CBC_SECTIONS
+        CBC_SECTIONS.forEach(section => {
+          // Section header row
+          if (section.label) {
+            rowsHTML += `<tr style="background: rgba(248,250,252,0.8); border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+              <td colspan="4" style="padding: 6px; font-weight: 700; text-align: center; color: #1e293b; text-transform: uppercase; letter-spacing: 2px; font-size: ${TXT.cbcSub};">${section.label}</td>
+            </tr>`;
+          }
+
+          // Find the last param in this section that has a value (for underline)
+          let lastRenderedIdx = -1;
+          if (section.label === 'Differential WBC Count') {
+            for (let i = section.params.length - 1; i >= 0; i--) {
+              const v = testResults[section.params[i]];
+              if (v !== undefined && v !== '') { lastRenderedIdx = i; break; }
+            }
+          }
+
+          // Parameter rows in defined order
+          section.params.forEach((paramName, pIdx) => {
+            const value = testResults[paramName];
+            if (value === undefined && value !== '') return; // skip if not entered
+            const abnormal = isAbnormal(testName, paramName, value);
+            const isLastDiff = section.label === 'Differential WBC Count' && pIdx === lastRenderedIdx;
+
+            rowsHTML += `
+              <tr>
+                <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${paramName}</td>
+                <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${getAbnormalColor(abnormal)};${isLastDiff ? ' border-bottom: 1px solid #1e293b;' : ''}">${value}${abnormal ? ' *' : ''}</td>
+                <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, paramName)}</td>
+                <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, paramName)}</td>
+              </tr>`;
+          });
+
+          // Add Total row after Differential WBC Count section
+          if (section.label === 'Differential WBC Count') {
+            rowsHTML += buildDiffTotalRow(section.params);
+          }
+        });
+
+        // Catch any parameters not in CBC_SECTIONS (future-proofing)
+        const knownParams = CBC_SECTIONS.flatMap(s => s.params);
+        Object.entries(testResults).forEach(([param, value]) => {
+          if (!knownParams.includes(param)) {
+            const abnormal = isAbnormal(testName, param, value);
+            rowsHTML += `
+              <tr>
+                <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
+                <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${getAbnormalColor(abnormal)};">${value}${abnormal ? ' *' : ''}</td>
+                <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
+                <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
+              </tr>`;
+          }
+        });
+      }
     } else {
-      // Non-CBC tests: render in natural order
-      Object.entries(results[testName]).forEach(([param, value]) => {
-        const abnormal = isAbnormal(testName, param, value);
+      // Non-CBC tests: render in effective params order (respects user reordering)
+      const effectiveParams = getEffectiveParams(testName, testParamSettings);
+      effectiveParams.forEach(param => {
+        const value = results[testName][param.name];
+        if (value === undefined || value === '') return; // skip if not entered
+        const abnormal = isAbnormal(testName, param.name, value);
         rowsHTML += `
           <tr>
-            <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param}</td>
-            <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${abnormal ? '#dc2626' : '#0f172a'};">${value}${abnormal ? ' *' : ''}</td>
-            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getUnit(testName, param)}</td>
-            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${getRefRange(testName, param)}</td>
+            <td style="padding: ${SP.rowPad}; font-weight: 500; font-size: ${TXT.tdRow};">${param.name}</td>
+            <td style="padding: ${SP.rowPad}; font-weight: 700; font-size: ${TXT.tdRow}; color: ${getAbnormalColor(abnormal)};">${value}${abnormal ? ' *' : ''}</td>
+            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${param.unit || ''}</td>
+            <td style="padding: ${SP.rowPad}; color: #64748b; font-size: ${TXT.tdRow};">${param.ref || '-'}</td>
           </tr>`;
       });
     }
